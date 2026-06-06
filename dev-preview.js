@@ -45,10 +45,11 @@ app.whenReady().then(async () => {
   // ---- badge previews (three states) ----
   const iconWin = new BrowserWindow({ width: 64, height: 64, show: false });
   await iconWin.loadFile(path.join(__dirname, 'icon.html'));
+  const CLAUDE_ORANGE = '#d97757';
   const states = [
-    ['47', '#f5a623', false, 'badge-47.png'],
-    ['9', '#30a46c', false, 'badge-09.png'],
-    ['91', '#e5484d', true, 'badge-91-stale.png'],
+    ['47', CLAUDE_ORANGE, false, 'badge-47.png'],
+    ['9', CLAUDE_ORANGE, false, 'badge-09.png'],
+    ['100', CLAUDE_ORANGE, true, 'badge-100-stale.png'],
   ];
   for (const [text, color, stale, file] of states) {
     const url = await iconWin.webContents.executeJavaScript(

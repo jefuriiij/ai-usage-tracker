@@ -14,6 +14,7 @@ const BACKOFF_INTERVAL_MS = 300_000; // 300s after a 429
 const MIN_ADHOC_GAP_MS = 30_000; // throttle manual/refresh polls
 const POPUP_W = 320;
 const POPUP_H = 320;
+const CLAUDE_ORANGE = '#d97757'; // Claude brand coral — constant tray badge color
 
 // ---- State ----------------------------------------------------------------
 let tray = null;
@@ -160,20 +161,16 @@ function maybeWriteDiscoveryLog(raw) {
 async function render() {
   const stale = status === 'stale' || status === 'expired';
 
-  // --- Tray badge text + color (driven by the session % when we have one) ---
+  // --- Tray badge: constant Claude coral, just the session % (dimmed if stale) ---
   let text = '?';
-  let color = '#6e6e6e';
   if (lastReading && lastReading.session) {
-    const p = fmt.roundPct(lastReading.session.pct);
-    text = String(p);
-    color = fmt.colorForPct(p);
+    text = String(fmt.roundPct(lastReading.session.pct));
   } else if (status === 'not_found') {
     text = '!';
-    color = '#6e6e6e';
   }
 
   try {
-    tray.setImage(await makeBadge(text, color, stale));
+    tray.setImage(await makeBadge(text, CLAUDE_ORANGE, stale));
   } catch {
     /* ignore transient renderer issues */
   }
