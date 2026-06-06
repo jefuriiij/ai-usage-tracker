@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>tray-icon-renderer</title>
+</head>
+<body>
+  <!--
+    Hidden off-screen renderer. main.js calls window.drawBadge(...) via
+    webContents.executeJavaScript and gets back a PNG data URL, which it turns
+    into a nativeImage for the tray. Tray.setTitle() is macOS-only, so on Windows
+    we must paint the number directly into the icon.
+  -->
+  <canvas id="c" width="32" height="32"></canvas>
+  <script>
+    /**
+     * Draw a 32x32 tray badge: a colored rounded square with text on it.
+     * @param {string} text   e.g. "37", "100", "?", "—"
+     * @param {string} bg     background color (hex)
+     * @param {boolean} stale dim the badge when showing stale data
+     * @returns {string} PNG data URL
+     */
+    function drawBadge(text, bg, stale) {
+      const canvas = document.getElementById('c');
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, 32, 32);
+
+      // Rounded-square background.
+      const r = 7;
+      ctx.globalAlpha = stale ? 0.45 : 1;
+      ctx.fillStyle = bg || '#30a46c';
+      ctx.beginPath();
+      ctx.moveTo(r, 0);
+      ctx.arcTo(32, 0, 32, 32, r);
+      ctx.arcTo(32, 32, 0, 32, r);
+      ctx.arcTo(0, 32, 0, 0, r);
+      ctx.arcTo(0, 0, 32, 0, r);
+      ctx.closePath();
+      ctx.fill();
+
+      // Text.
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = '#ffffff';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const len = String(text).length;
+      const size = len >= 3 ? 15 : len === 2 ? 20 : 22;
+      ctx.font = `600 ${size}px "Segoe UI", system-ui, sans-serif`;
+      // Nudge baseline up 1px for optical centering.
+      ctx.fillText(String(text), 16, 17);
+
+      return canvas.toDataURL('image/png');
+    }
+
+    window.drawBadge = drawBadge;
+  </script>
+</body>
+</html>

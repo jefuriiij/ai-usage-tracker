@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'self';" />
+  <title>Claude Usage</title>
+  <style>
+    :root {
+      --bg: #262624;
+      --card: #30302e;
+      --text: #ececec;
+      --muted: #9b9a96;
+      --track: #46453f;
+      --border: #3a3a37;
+      --accent: #d97757; /* claude coral */
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%; height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      font-size: 13px;
+      -webkit-user-select: none;
+      user-select: none;
+      overflow: hidden;
+    }
+    .wrap { padding: 14px 16px 12px; height: 100%; display: flex; flex-direction: column; }
+
+    header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .title { font-size: 13px; font-weight: 600; letter-spacing: .2px; display: flex; align-items: center; gap: 8px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+    .dot.ok { background: #30a46c; }
+    .dot.stale { background: #f5a623; }
+    .dot.bad { background: #e5484d; }
+
+    .banner {
+      background: #3a2f28; color: #f0c8a8; border: 1px solid #5a4636;
+      border-radius: 8px; padding: 7px 10px; font-size: 11.5px; margin-bottom: 10px;
+      line-height: 1.35; display: none;
+    }
+    .banner.show { display: block; }
+
+    .rows { display: flex; flex-direction: column; gap: 10px; flex: 1; }
+    .row { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+    .row.hidden { display: none; }
+    .row-top { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 7px; }
+    .row-label { font-weight: 500; color: var(--text); }
+    .row-pct { font-variant-numeric: tabular-nums; font-weight: 600; font-size: 14px; }
+    .bar { height: 6px; background: var(--track); border-radius: 4px; overflow: hidden; }
+    .bar > span { display: block; height: 100%; width: 0%; border-radius: 4px; transition: width .35s ease; }
+    .row-reset { margin-top: 6px; font-size: 11px; color: var(--muted); }
+
+    footer { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); }
+    .updated { font-size: 11px; color: var(--muted); }
+    .btns { display: flex; gap: 6px; }
+    button {
+      background: var(--card); color: var(--text); border: 1px solid var(--border);
+      border-radius: 7px; padding: 5px 10px; font-size: 11.5px; cursor: pointer; font-family: inherit;
+    }
+    button:hover { background: #3a3a37; }
+    button:active { transform: translateY(1px); }
+    .dimmed { opacity: .55; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="title"><span id="statusDot" class="dot"></span> Claude usage</div>
+      <span class="updated" id="updated"></span>
+    </header>
+
+    <div class="banner" id="banner"></div>
+
+    <div class="rows" id="rows">
+      <div class="row hidden" data-key="session">
+        <div class="row-top"><span class="row-label">Current session</span><span class="row-pct">–</span></div>
+        <div class="bar"><span></span></div>
+        <div class="row-reset"></div>
+      </div>
+      <div class="row hidden" data-key="week">
+        <div class="row-top"><span class="row-label">This week (all models)</span><span class="row-pct">–</span></div>
+        <div class="bar"><span></span></div>
+        <div class="row-reset"></div>
+      </div>
+      <div class="row hidden" data-key="opus">
+        <div class="row-top"><span class="row-label">This week (Opus)</span><span class="row-pct">–</span></div>
+        <div class="bar"><span></span></div>
+        <div class="row-reset"></div>
+      </div>
+      <div class="row hidden" data-key="sonnet">
+        <div class="row-top"><span class="row-label">This week (Sonnet)</span><span class="row-pct">–</span></div>
+        <div class="bar"><span></span></div>
+        <div class="row-reset"></div>
+      </div>
+    </div>
+
+    <footer>
+      <span class="updated" id="footNote"></span>
+      <div class="btns">
+        <button id="refreshBtn">Refresh</button>
+        <button id="quitBtn">Quit</button>
+      </div>
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

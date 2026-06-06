@@ -1,0 +1,20 @@
+# Dependencies
+node_modules/
+
+# Build output (electron-builder, etc.)
+dist/
+out/
+*.exe
+
+# Dev preview artifacts
+popup-preview.png
+badge-*.png
+
+# Logs / local runtime data
+*.log
+last-usage.json
+
+# OS / editor cruft
+Thumbs.db
+.DS_Store
+.vscode/

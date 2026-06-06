@@ -1,0 +1,14 @@
+{
+  "name": "claude-usage-tracker",
+  "version": "1.0.0",
+  "description": "Passive Windows system-tray widget that shows your Claude session usage (read-only).",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^31.7.0"
+  }
+}
