@@ -3,12 +3,43 @@
   "version": "1.0.0",
   "description": "Passive Windows system-tray widget that shows your Claude session usage (read-only).",
   "main": "main.js",
-  "scripts": {
-    "start": "electron ."
-  },
-  "author": "",
+  "author": "Jeff",
   "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "icon": "electron build-icon.js",
+    "dist": "electron-builder"
+  },
   "devDependencies": {
-    "electron": "^31.7.0"
+    "electron": "^31.7.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.claudeusage.tracker",
+    "productName": "Claude Usage Tracker",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "popup.html",
+      "popup.js",
+      "icon.html",
+      "lib/**/*"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Claude Usage Tracker",
+      "uninstallDisplayName": "Claude Usage Tracker"
+    }
   }
 }

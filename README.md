@@ -37,7 +37,35 @@ The app lives in the tray (no taskbar button). Right-click the tray icon for:
 
 To launch automatically on sign-in, toggle **Start at login** in that menu.
 
+## Build a Windows installer
+
+```sh
+npm run icon    # regenerate build/icon.ico (only if you change the icon)
+npm run dist    # build the NSIS installer with electron-builder
+```
+
+The installer is written to `dist\Claude Usage Tracker Setup <version>.exe`. It's a
+**per-user** NSIS installer (no admin required) that installs to
+`%LOCALAPPDATA%\Programs`, adds Start-Menu and desktop shortcuts, and registers an
+uninstaller in *Add/Remove Programs*.
+
+> The installer is **unsigned**, so Windows SmartScreen shows an "Unknown publisher"
+> prompt on first run — choose *More info → Run anyway*. To remove that warning you'd
+> need a code-signing certificate (configure `win.certificateFile`/`certificatePassword`
+> in `package.json` → `build`).
+
 ## Files
+
+| File | Role |
+|------|------|
+| `main.js` | App lifecycle, tray, 180s poll loop, popup window, menu, IPC |
+| `lib/credentials.js` | **Read-only** reader for `~/.claude/.credentials.json` |
+| `lib/usage.js` | Calls `/api/oauth/usage`, normalizes the response |
+| `lib/format.js` | Percent rounding, status colors, "resets in" formatting |
+| `icon.html` | Hidden canvas renderer that paints the tray badge number |
+| `preload.js` | Locked-down IPC bridge for the popup |
+| `popup.html` / `popup.js` | The usage panel UI |
+| `build-icon.js` | Dev tool — regenerates `build/icon.ico` / `build/icon.png` |
 
 | File | Role |
 |------|------|
@@ -55,5 +83,6 @@ verified for your account type.
 
 ## Not included (possible follow-ups)
 
-- Packaging to a signed `.exe` (e.g. electron-builder) — for now it runs via `npm start`.
+- **Code signing** the installer (removes the SmartScreen "Unknown publisher" prompt).
+- Auto-updates (electron-updater) — the NSIS target is already update-ready.
 - Threshold notifications / historical graphs.
