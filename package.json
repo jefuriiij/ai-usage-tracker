@@ -1,6 +1,6 @@
 {
   "name": "claude-usage-tracker",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Passive Windows system-tray widget that shows your Claude session usage (read-only).",
   "main": "main.js",
   "author": "Jeff",
@@ -34,10 +34,15 @@
       "icon": "build/icon.ico"
     },
     "nsis": {
-      "oneClick": true,
+      "oneClick": false,
       "perMachine": false,
+      "allowElevation": false,
+      "allowToChangeInstallationDirectory": true,
+      "runAfterFinish": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
+      "installerSidebar": "build/sidebar.bmp",
+      "uninstallerSidebar": "build/sidebar.bmp",
       "shortcutName": "Claude Usage Tracker",
       "uninstallDisplayName": "Claude Usage Tracker"
     }

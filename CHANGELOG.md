@@ -3,6 +3,14 @@
 All notable changes to **Claude Usage Tracker** are recorded here.
 Each released version ships a matching `releases/Claude Usage Tracker Setup <version>.exe`.
 
+## [1.0.3] — 2026-06-07
+
+### Changed
+- Installer is now an assisted wizard (Welcome → choose folder → install → Finish)
+  with Cancel/Back/Next buttons, a branded espresso-gradient sidebar, and a
+  "launch on finish" checkbox — replacing the silent one-click installer. Still a
+  per-user install (no admin/UAC prompt); an existing install updates in place.
+
 ## [1.0.2] — 2026-06-07
 
 ### Changed
