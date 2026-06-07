@@ -9,6 +9,10 @@ out/
 # Dev preview artifacts
 popup-preview.png
 badge-*.png
+tray-sim.png
+
+# Versioned installer archive (binaries — tracked via CHANGELOG.md, not git)
+releases/
 
 # Logs / local runtime data
 *.log
