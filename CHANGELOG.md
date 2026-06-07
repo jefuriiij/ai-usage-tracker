@@ -3,6 +3,16 @@
 All notable changes to **Claude Usage Tracker** are recorded here.
 Each released version ships a matching `releases/Claude Usage Tracker Setup <version>.exe`.
 
+## [1.0.4] — 2026-06-07
+
+### Changed
+- Installer no longer asks for an install folder. It installs to the default
+  per-user location and, when an existing install is detected (same app GUID),
+  updates in place instead of showing the folder page again — so reinstalls/
+  upgrades flow straight through the wizard. (Removed
+  `allowToChangeInstallationDirectory`; the folder page was shown on every run,
+  making updates look like fresh installs.)
+
 ## [1.0.3] — 2026-06-07
 
 ### Changed
