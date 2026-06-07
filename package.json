@@ -1,6 +1,6 @@
 {
   "name": "claude-usage-tracker",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Passive Windows system-tray widget that shows your Claude session usage (read-only).",
   "main": "main.js",
   "author": "Jeff",
