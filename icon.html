@@ -67,7 +67,86 @@
       return canvas.toDataURL('image/png');
     }
 
+    /**
+     * Draw a small monochrome glyph for a tray context-menu item. Rendered in
+     * the given color so it can match the system menu theme (light vs dark).
+     * @param {string} name  'panel' | 'refresh' | 'external' | 'power'
+     * @param {string} color CSS color (e.g. 'rgba(255,255,255,0.85)')
+     * @param {number} size  output px (16 for menus; larger for previews)
+     * @returns {string} PNG data URL
+     */
+    function drawMenuGlyph(name, color, size) {
+      size = size || 16;
+      const cv = document.createElement('canvas');
+      cv.width = size;
+      cv.height = size;
+      const x = cv.getContext('2d');
+      x.scale(size / 16, size / 16); // author everything in a 16x16 space
+      x.strokeStyle = color;
+      x.fillStyle = color;
+      x.lineWidth = 1.4;
+      x.lineCap = 'round';
+      x.lineJoin = 'round';
+
+      const rr = (px, py, w, h, r) => {
+        x.beginPath();
+        x.moveTo(px + r, py);
+        x.arcTo(px + w, py, px + w, py + h, r);
+        x.arcTo(px + w, py + h, px, py + h, r);
+        x.arcTo(px, py + h, px, py, r);
+        x.arcTo(px, py, px + w, py, r);
+        x.closePath();
+      };
+
+      if (name === 'panel') {
+        // Mini usage panel: rounded card with two "rows".
+        rr(2.5, 3, 11, 10, 2);
+        x.stroke();
+        x.beginPath(); x.moveTo(4.6, 6.6); x.lineTo(11.4, 6.6); x.stroke();
+        x.beginPath(); x.moveTo(4.6, 9.4); x.lineTo(9, 9.4); x.stroke();
+      } else if (name === 'refresh') {
+        // Circular arrow: 270° ring with a ~90° gap at the top and an open
+        // chevron arrowhead at the upper-left tip pointing clockwise.
+        const cx = 8, cy = 8.2, r = 4.7;
+        const a0 = (315 * Math.PI) / 180;
+        const a1 = a0 + (270 * Math.PI) / 180; // ends at 225°
+        x.beginPath();
+        x.arc(cx, cy, r, a0, a1);
+        x.stroke();
+        const ex = cx + r * Math.cos(a1), ey = cy + r * Math.sin(a1);
+        const back = a1 + Math.PI / 2 + Math.PI; // reverse of clockwise tangent
+        const spread = 0.5, len = 3;
+        x.beginPath();
+        x.moveTo(ex + len * Math.cos(back - spread), ey + len * Math.sin(back - spread));
+        x.lineTo(ex, ey);
+        x.lineTo(ex + len * Math.cos(back + spread), ey + len * Math.sin(back + spread));
+        x.stroke();
+      } else if (name === 'external') {
+        // Box with an arrow leaving the top-right (open a link).
+        x.beginPath();
+        x.moveTo(9.5, 4.6);
+        x.lineTo(4.6, 4.6);
+        x.lineTo(4.6, 11.4);
+        x.lineTo(11.4, 11.4);
+        x.lineTo(11.4, 6.5);
+        x.stroke();
+        x.beginPath(); x.moveTo(8.4, 7.6); x.lineTo(12.6, 3.4); x.stroke();
+        x.beginPath();
+        x.moveTo(9.4, 3.4); x.lineTo(12.6, 3.4); x.lineTo(12.6, 6.6);
+        x.stroke();
+      } else if (name === 'power') {
+        // Power symbol: ring open at the top + vertical stroke (quit).
+        const cx = 8, cy = 9, r = 4.2;
+        x.beginPath();
+        x.arc(cx, cy, r, (-60) * Math.PI / 180, 240 * Math.PI / 180);
+        x.stroke();
+        x.beginPath(); x.moveTo(8, 3.3); x.lineTo(8, 8.2); x.stroke();
+      }
+      return cv.toDataURL('image/png');
+    }
+
     window.drawBadge = drawBadge;
+    window.drawMenuGlyph = drawMenuGlyph;
   </script>
 </body>
 </html>

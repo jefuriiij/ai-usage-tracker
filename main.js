@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, Tray, Menu, BrowserWindow, screen, nativeImage, ipcMain, shell } = require('electron');
+const { app, Tray, Menu, BrowserWindow, screen, nativeImage, nativeTheme, ipcMain, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -19,6 +19,7 @@ const POPUP_H = 320;
 let tray = null;
 let iconWin = null; // hidden renderer that paints the tray badge
 let popup = null;
+let menuIcons = {}; // cached nativeImages for the context-menu items
 let pollTimer = null;
 let lastPollAt = 0;
 
@@ -49,7 +50,14 @@ async function init() {
   tray.setToolTip('Claude Usage — starting…');
   tray.on('click', () => togglePopup());
   tray.on('right-click', showMenu);
+  await loadMenuIcons();
   rebuildMenu();
+
+  // Re-theme the menu glyphs if the OS switches between light/dark.
+  nativeTheme.on('updated', async () => {
+    await loadMenuIcons();
+    rebuildMenu();
+  });
 
   await poll(); // first read immediately
   pollTimer = setInterval(poll, POLL_INTERVAL_MS);
@@ -78,6 +86,32 @@ async function makeBadge(text, stale) {
   const dataUrl = await iconWin.webContents.executeJavaScript(js);
   const img = nativeImage.createFromDataURL(dataUrl);
   return img;
+}
+
+/**
+ * Render the context-menu glyphs once and cache them as nativeImages, colored
+ * to match the current OS menu theme (light vs dark). Called at startup and
+ * whenever the system theme changes.
+ */
+async function loadMenuIcons() {
+  if (!iconWin) return;
+  if (iconWin.webContents.isLoading()) {
+    await new Promise((res) => iconWin.webContents.once('did-finish-load', res));
+  }
+  const color = nativeTheme.shouldUseDarkColors ? 'rgba(255, 255, 255, 0.85)' : 'rgba(0, 0, 0, 0.72)';
+  const want = { showPanel: 'panel', refresh: 'refresh', openUsage: 'external', quit: 'power' };
+  const out = {};
+  for (const [key, glyph] of Object.entries(want)) {
+    try {
+      const url = await iconWin.webContents.executeJavaScript(
+        `drawMenuGlyph(${JSON.stringify(glyph)}, ${JSON.stringify(color)}, 16)`
+      );
+      out[key] = nativeImage.createFromDataURL(url);
+    } catch {
+      /* leave this glyph unset — the menu item just renders without an icon */
+    }
+  }
+  menuIcons = out;
 }
 
 // ---------------------------------------------------------------------------
@@ -282,10 +316,11 @@ function rebuildMenu() {
   if (!tray) return;
   const loginEnabled = app.getLoginItemSettings().openAtLogin;
   const menu = Menu.buildFromTemplate([
-    { label: 'Show usage panel', click: () => togglePopup(true) },
-    { label: 'Refresh now', click: refreshNow },
+    { label: 'Show usage panel', icon: menuIcons.showPanel, click: () => togglePopup(true) },
+    { label: 'Refresh now', icon: menuIcons.refresh, click: refreshNow },
     { type: 'separator' },
     {
+      // Checkbox item: the check state is its indicator, so no custom icon.
       label: 'Start at login',
       type: 'checkbox',
       checked: loginEnabled,
@@ -296,10 +331,11 @@ function rebuildMenu() {
     },
     {
       label: 'Open claude.ai usage',
+      icon: menuIcons.openUsage,
       click: () => shell.openExternal('https://claude.ai/settings/usage'),
     },
     { type: 'separator' },
-    { label: 'Quit', click: () => { tray.destroy(); app.exit(0); } },
+    { label: 'Quit', icon: menuIcons.quit, click: () => { tray.destroy(); app.exit(0); } },
   ]);
   tray.setContextMenu(menu);
 }

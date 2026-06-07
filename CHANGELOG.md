@@ -3,6 +3,16 @@
 All notable changes to **Claude Usage Tracker** are recorded here.
 Each released version ships a matching `releases/Claude Usage Tracker Setup <version>.exe`.
 
+## [1.0.6] — 2026-06-07
+
+### Added
+- The tray right-click menu now shows a small icon before each item — a panel
+  glyph for "Show usage panel", a circular arrow for "Refresh now", an
+  open-link box for "Open claude.ai usage", and a power symbol for "Quit". The
+  glyphs are theme-aware (light on dark menus, dark on light) and re-render if
+  the OS theme changes. ("Start at login" stays a checkbox, so its checkmark is
+  its indicator.)
+
 ## [1.0.5] — 2026-06-07
 
 ### Fixed
