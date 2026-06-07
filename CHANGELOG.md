@@ -3,6 +3,15 @@
 All notable changes to **Claude Usage Tracker** are recorded here.
 Each released version ships a matching `releases/Claude Usage Tracker Setup <version>.exe`.
 
+## [1.0.5] — 2026-06-07
+
+### Fixed
+- Weekly/any usage at or below 1% was shown as 100%. `pickWindow()` had a
+  heuristic that treated `utilization <= 1` as a 0–1 fraction and multiplied by
+  100, so a genuine 1% reading became 100% (and showed a red bar). The endpoint
+  always reports utilization on a 0–100 scale, so the rescaling was removed —
+  values now pass through untouched and match the claude.ai panel.
+
 ## [1.0.4] — 2026-06-07
 
 ### Changed
