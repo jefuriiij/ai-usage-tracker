@@ -183,18 +183,24 @@ async function render() {
 }
 
 function buildTooltip() {
-  if (status === 'not_found') return 'Claude Usage — not signed in (open Claude Code)';
-  if (!lastReading || !lastReading.session) return 'Claude Usage — waiting for data…';
+  // Windows tray tooltips support newlines (and ~128 chars), so we lay the
+  // limits out one-per-line with a "Claude Usage" header instead of one run-on.
+  if (status === 'not_found') return 'Claude Usage\nNot signed in — open Claude Code';
+  if (!lastReading || !lastReading.session) return 'Claude Usage\nWaiting for data…';
   const s = lastReading.session;
-  const parts = [`Session ${fmt.roundPct(s.pct)}%`];
-  const r = fmt.resetsInShort(s.resetsAt);
-  if (r) parts[0] += ` (resets ${r})`;
-  if (lastReading.week) parts.push(`Week ${fmt.roundPct(lastReading.week.pct)}%`);
-  if (lastReading.opus) parts.push(`Opus ${fmt.roundPct(lastReading.opus.pct)}%`);
-  if (lastReading.sonnet) parts.push(`Sonnet ${fmt.roundPct(lastReading.sonnet.pct)}%`);
-  let t = 'Claude — ' + parts.join(' · ');
-  if (status === 'stale' || status === 'expired') t += `  (as of ${fmt.clockTime(lastReading.updatedAt)})`;
-  return t;
+  const lines = ['Claude Usage'];
+  let session = `Session: ${fmt.roundPct(s.pct)}%`;
+  const r = fmt.resetsIn(s.resetsAt);
+  if (r) session += ` (resets in ${r})`;
+  lines.push(session);
+  if (lastReading.week) lines.push(`Week: ${fmt.roundPct(lastReading.week.pct)}%`);
+  if (lastReading.opus) lines.push(`Opus only: ${fmt.roundPct(lastReading.opus.pct)}%`);
+  if (lastReading.sonnet) lines.push(`Sonnet only: ${fmt.roundPct(lastReading.sonnet.pct)}%`);
+  // Keep the stale note short so the whole tooltip stays under the char cap.
+  if (status === 'stale' || status === 'expired') {
+    lines.push(`(as of ${fmt.clockTime(lastReading.updatedAt)})`);
+  }
+  return lines.join('\n');
 }
 
 /** The data object handed to the popup renderer. */
