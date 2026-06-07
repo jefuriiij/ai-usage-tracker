@@ -25,31 +25,35 @@ function drawIcon() {
     ctx.closePath();
   }
 
-  // Background: coral gradient rounded square.
-  const g = ctx.createLinearGradient(0, 0, 256, 256);
-  g.addColorStop(0, '#e2885f');
-  g.addColorStop(1, '#c2542f');
+  // Background: vertical espresso gradient #120B05 (top) -> #784921 (bottom).
+  const g = ctx.createLinearGradient(0, 0, 0, 256);
+  g.addColorStop(0, '#120b05');
+  g.addColorStop(0.5, '#2a190d');
+  g.addColorStop(1, '#784921');
   ctx.fillStyle = g;
   roundRect(0, 0, 256, 256, 58);
   ctx.fill();
 
-  // Subtle top highlight.
-  const hl = ctx.createLinearGradient(0, 0, 0, 128);
-  hl.addColorStop(0, 'rgba(255,255,255,0.18)');
-  hl.addColorStop(1, 'rgba(255,255,255,0)');
-  ctx.fillStyle = hl;
+  // Soft warm glow low-center for depth (clipped to the rounded square).
+  ctx.save();
   roundRect(0, 0, 256, 256, 58);
-  ctx.fill();
+  ctx.clip();
+  const glow = ctx.createRadialGradient(128, 208, 8, 128, 208, 150);
+  glow.addColorStop(0, 'rgba(168, 102, 48, 0.5)');
+  glow.addColorStop(1, 'rgba(120, 73, 33, 0)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, 256, 256);
+  ctx.restore();
 
   // Gauge ring (3/4 arc) to read as a "usage meter".
   const cx = 128;
-  const cy = 138;
-  const radius = 70;
+  const cy = 134;
+  const radius = 72;
   const start = 0.75 * Math.PI;
   const end = 2.25 * Math.PI;
   ctx.lineCap = 'round';
   ctx.lineWidth = 22;
-  ctx.strokeStyle = 'rgba(255,255,255,0.30)';
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
   ctx.beginPath();
   ctx.arc(cx, cy, radius, start, end);
   ctx.stroke();
@@ -63,7 +67,7 @@ function drawIcon() {
   ctx.fillStyle = '#ffffff';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.font = '700 70px "Segoe UI", system-ui, sans-serif';
+  ctx.font = '700 72px "Segoe UI", system-ui, sans-serif';
   ctx.fillText('%', cx, cy + 4);
 
   return c.toDataURL('image/png');

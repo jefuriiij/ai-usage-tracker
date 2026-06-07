@@ -14,39 +14,54 @@
   <canvas id="c" width="32" height="32"></canvas>
   <script>
     /**
-     * Draw a 32x32 tray badge: a colored rounded square with text on it.
+     * Draw a 32x32 tray badge: a dark warm-gradient rounded square (espresso
+     * fade) with a large bold white number on it.
      * @param {string} text   e.g. "37", "100", "?", "—"
-     * @param {string} bg     background color (hex)
      * @param {boolean} stale dim the badge when showing stale data
      * @returns {string} PNG data URL
      */
-    function drawBadge(text, bg, stale) {
+    function drawBadge(text, stale) {
       const canvas = document.getElementById('c');
       const ctx = canvas.getContext('2d');
       ctx.clearRect(0, 0, 32, 32);
 
-      // Rounded-square background.
       const r = 7;
-      ctx.globalAlpha = stale ? 0.45 : 1;
-      ctx.fillStyle = bg || '#30a46c';
-      ctx.beginPath();
-      ctx.moveTo(r, 0);
-      ctx.arcTo(32, 0, 32, 32, r);
-      ctx.arcTo(32, 32, 0, 32, r);
-      ctx.arcTo(0, 32, 0, 0, r);
-      ctx.arcTo(0, 0, 32, 0, r);
-      ctx.closePath();
+      function roundPath() {
+        ctx.beginPath();
+        ctx.moveTo(r, 0);
+        ctx.arcTo(32, 0, 32, 32, r);
+        ctx.arcTo(32, 32, 0, 32, r);
+        ctx.arcTo(0, 32, 0, 0, r);
+        ctx.arcTo(0, 0, 32, 0, r);
+        ctx.closePath();
+      }
+
+      ctx.globalAlpha = stale ? 0.5 : 1;
+
+      // Vertical espresso gradient: near-black top (#120B05) -> warm brown
+      // bottom (#784921), with the warmth kept low like the reference.
+      const g = ctx.createLinearGradient(0, 0, 0, 32);
+      g.addColorStop(0, '#120b05');
+      g.addColorStop(0.5, '#2a190d');
+      g.addColorStop(1, '#784921');
+      roundPath();
+      ctx.fillStyle = g;
       ctx.fill();
 
-      // Text.
-      ctx.globalAlpha = 1;
+      // Faint hairline so the dark icon keeps an edge on a dark taskbar.
+      roundPath();
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.14)';
+      ctx.stroke();
+
+      // Number — large, bold, white.
+      ctx.globalAlpha = stale ? 0.7 : 1;
       ctx.fillStyle = '#ffffff';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       const len = String(text).length;
-      const size = len >= 3 ? 15 : len === 2 ? 20 : 22;
-      ctx.font = `600 ${size}px "Segoe UI", system-ui, sans-serif`;
-      // Nudge baseline up 1px for optical centering.
+      const size = len >= 3 ? 16 : len === 2 ? 22 : 24;
+      ctx.font = `700 ${size}px "Segoe UI", system-ui, sans-serif`;
       ctx.fillText(String(text), 16, 17);
 
       return canvas.toDataURL('image/png');

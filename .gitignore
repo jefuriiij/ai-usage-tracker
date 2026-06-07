@@ -18,3 +18,6 @@ last-usage.json
 Thumbs.db
 .DS_Store
 .vscode/
+
+# Claude Code agent memory belongs at the project root (app-1\.claude), not in this app repo
+.claude/

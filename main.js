@@ -14,7 +14,6 @@ const BACKOFF_INTERVAL_MS = 300_000; // 300s after a 429
 const MIN_ADHOC_GAP_MS = 30_000; // throttle manual/refresh polls
 const POPUP_W = 320;
 const POPUP_H = 320;
-const CLAUDE_ORANGE = '#d97757'; // Claude brand coral — constant tray badge color
 
 // ---- State ----------------------------------------------------------------
 let tray = null;
@@ -46,7 +45,7 @@ app.on('window-all-closed', (e) => e.preventDefault()); // stay alive in tray
 
 async function init() {
   createIconWindow();
-  tray = new Tray(await makeBadge('…', '#6e6e6e', false));
+  tray = new Tray(await makeBadge('…', false));
   tray.setToolTip('Claude Usage — starting…');
   tray.on('click', () => togglePopup());
   tray.on('right-click', showMenu);
@@ -70,12 +69,12 @@ function createIconWindow() {
 }
 
 /** Ask the hidden renderer to paint a badge and return it as a nativeImage. */
-async function makeBadge(text, color, stale) {
+async function makeBadge(text, stale) {
   // Wait for the renderer to be ready on the very first call.
   if (iconWin.webContents.isLoading()) {
     await new Promise((res) => iconWin.webContents.once('did-finish-load', res));
   }
-  const js = `drawBadge(${JSON.stringify(String(text))}, ${JSON.stringify(color)}, ${stale ? 'true' : 'false'})`;
+  const js = `drawBadge(${JSON.stringify(String(text))}, ${stale ? 'true' : 'false'})`;
   const dataUrl = await iconWin.webContents.executeJavaScript(js);
   const img = nativeImage.createFromDataURL(dataUrl);
   return img;
@@ -161,7 +160,7 @@ function maybeWriteDiscoveryLog(raw) {
 async function render() {
   const stale = status === 'stale' || status === 'expired';
 
-  // --- Tray badge: constant Claude coral, just the session % (dimmed if stale) ---
+  // --- Tray badge: dark gradient badge showing session % (dimmed if stale) ---
   let text = '?';
   if (lastReading && lastReading.session) {
     text = String(fmt.roundPct(lastReading.session.pct));
@@ -170,7 +169,7 @@ async function render() {
   }
 
   try {
-    tray.setImage(await makeBadge(text, CLAUDE_ORANGE, stale));
+    tray.setImage(await makeBadge(text, stale));
   } catch {
     /* ignore transient renderer issues */
   }

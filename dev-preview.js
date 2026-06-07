@@ -45,19 +45,40 @@ app.whenReady().then(async () => {
   // ---- badge previews (three states) ----
   const iconWin = new BrowserWindow({ width: 64, height: 64, show: false });
   await iconWin.loadFile(path.join(__dirname, 'icon.html'));
-  const CLAUDE_ORANGE = '#d97757';
   const states = [
-    ['47', CLAUDE_ORANGE, false, 'badge-47.png'],
-    ['9', CLAUDE_ORANGE, false, 'badge-09.png'],
-    ['100', CLAUDE_ORANGE, true, 'badge-100-stale.png'],
+    ['47', false, 'badge-47.png'],
+    ['9', false, 'badge-09.png'],
+    ['100', true, 'badge-100-stale.png'],
   ];
-  for (const [text, color, stale, file] of states) {
+  const urls = {};
+  for (const [text, stale, file] of states) {
     const url = await iconWin.webContents.executeJavaScript(
-      `drawBadge(${JSON.stringify(text)}, ${JSON.stringify(color)}, ${stale})`
+      `drawBadge(${JSON.stringify(text)}, ${stale})`
     );
+    urls[file] = url;
     fs.writeFileSync(path.join(__dirname, file), nativeImage.createFromDataURL(url).toPNG());
     console.log('wrote', file);
   }
+
+  // ---- tray simulation: badge at real tray sizes on dark + light taskbars ----
+  const simUrl = await iconWin.webContents.executeJavaScript(`(async () => {
+    const c = document.createElement('canvas'); c.width = 260; c.height = 56;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#1d1d1d'; ctx.fillRect(0, 0, 260, 28);   // Win11 dark taskbar
+    ctx.fillStyle = '#e9e6df'; ctx.fillRect(0, 28, 260, 28);  // light taskbar
+    const load = (u) => new Promise((r) => { const i = new Image(); i.onload = () => r(i); i.src = u; });
+    const b = await load(${JSON.stringify(urls['badge-47.png'])});
+    const sizes = [16, 20, 24];
+    let x = 24;
+    for (const s of sizes) {
+      ctx.drawImage(b, x, 14 - s / 2, s, s);       // on dark strip
+      ctx.drawImage(b, x, 42 - s / 2, s, s);       // on light strip
+      x += s + 44;
+    }
+    return c.toDataURL('image/png');
+  })()`);
+  fs.writeFileSync(path.join(__dirname, 'tray-sim.png'), nativeImage.createFromDataURL(simUrl).toPNG());
+  console.log('wrote tray-sim.png');
 
   app.quit();
 });
