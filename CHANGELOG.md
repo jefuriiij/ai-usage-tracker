@@ -3,6 +3,21 @@
 All notable changes to **Claude Usage Tracker** are recorded here.
 Each released version ships a matching `releases/Claude Usage Tracker Setup <version>.exe`.
 
+## [1.0.7] — 2026-07-02
+
+### Added
+- Per-model weekly limits are now read from the API's new self-describing
+  `limits` array and rendered dynamically with the label the API provides —
+  so the new "Fable" weekly limit shows up in the popup ("This week (Fable)")
+  and the tray tooltip ("Fable only: N%"), and future scoped limits will
+  appear automatically without code changes.
+
+### Changed
+- `normalize()` prefers the `limits` array (kinds `session` / `weekly_all` /
+  scoped) and falls back to the legacy flat fields (`five_hour`, `seven_day`,
+  `seven_day_opus`, `seven_day_sonnet`) for older responses. The hardcoded
+  Opus/Sonnet popup rows were replaced by dynamic scoped rows.
+
 ## [1.0.6] — 2026-06-07
 
 ### Added

@@ -228,8 +228,9 @@ function buildTooltip() {
   if (r) session += ` (resets in ${r})`;
   lines.push(session);
   if (lastReading.week) lines.push(`Week: ${fmt.roundPct(lastReading.week.pct)}%`);
-  if (lastReading.opus) lines.push(`Opus only: ${fmt.roundPct(lastReading.opus.pct)}%`);
-  if (lastReading.sonnet) lines.push(`Sonnet only: ${fmt.roundPct(lastReading.sonnet.pct)}%`);
+  for (const sc of lastReading.scoped || []) {
+    lines.push(`${sc.label} only: ${fmt.roundPct(sc.pct)}%`);
+  }
   // Keep the stale note short so the whole tooltip stays under the char cap.
   if (status === 'stale' || status === 'expired') {
     lines.push(`(as of ${fmt.clockTime(lastReading.updatedAt)})`);
@@ -277,7 +278,9 @@ function createPopup() {
 function popupHeight() {
   let rows = 0;
   if (lastReading) {
-    for (const k of ['session', 'week', 'opus', 'sonnet']) if (lastReading[k]) rows++;
+    if (lastReading.session) rows++;
+    if (lastReading.week) rows++;
+    rows += (lastReading.scoped || []).length;
   }
   rows = Math.max(rows, 1);
   const bannerShown = status !== 'ok' && !!statusDetail;

@@ -29,9 +29,16 @@ const fmt = require('./lib/format');
     console.log('[usage] raw response:\n', JSON.stringify(raw, null, 2));
     const n = usage.normalize(raw);
     console.log('\n[normalized]');
-    for (const k of ['session', 'week', 'opus', 'sonnet']) {
+    for (const k of ['session', 'week']) {
       if (n[k]) console.log(`  ${k}: ${fmt.roundPct(n[k].pct)}%  resets in ${fmt.resetsIn(n[k].resetsAt)}`);
       else console.log(`  ${k}: (none)`);
+    }
+    if (n.scoped.length) {
+      for (const s of n.scoped) {
+        console.log(`  scoped[${s.label}]: ${fmt.roundPct(s.pct)}%  resets in ${fmt.resetsIn(s.resetsAt)}`);
+      }
+    } else {
+      console.log('  scoped: (none)');
     }
   } catch (err) {
     console.error(`[usage] FAIL: status=${err.status || '?'} ${err.message}`);

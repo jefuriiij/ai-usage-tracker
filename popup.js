@@ -49,13 +49,7 @@ function rowEl(key) {
   return els.rows.querySelector(`.row[data-key="${key}"]`);
 }
 
-function renderWindow(key, win, dimmed) {
-  const row = rowEl(key);
-  if (!win) {
-    row.classList.add('hidden');
-    return;
-  }
-  row.classList.remove('hidden');
+function fillRow(row, win, dimmed) {
   row.classList.toggle('dimmed', !!dimmed);
   const pct = roundPct(win.pct);
   row.querySelector('.row-pct').textContent = `${pct}%`;
@@ -64,6 +58,44 @@ function renderWindow(key, win, dimmed) {
   bar.style.background = colorForPct(pct);
   const reset = resetsIn(win.resetsAt);
   row.querySelector('.row-reset').textContent = reset ? `Resets in ${reset}` : '';
+}
+
+function renderWindow(key, win, dimmed) {
+  const row = rowEl(key);
+  if (!win) {
+    row.classList.add('hidden');
+    return;
+  }
+  row.classList.remove('hidden');
+  fillRow(row, win, dimmed);
+}
+
+/**
+ * Sync the dynamic model/surface-scoped rows (reading.scoped) with the DOM.
+ * Rows are keyed by label and reused across renders so the bar's width
+ * transition doesn't restart from 0 on every 30s countdown re-tick.
+ */
+function syncScopedRows(scoped, dimmed) {
+  const tpl = document.getElementById('scopedRowTpl');
+  const existing = new Map(
+    [...els.rows.querySelectorAll('.row[data-scope]')].map((r) => [r.dataset.scope, r])
+  );
+  const keep = new Set();
+  for (const win of scoped || []) {
+    const key = String(win.label || 'Scoped');
+    keep.add(key);
+    let row = existing.get(key);
+    if (!row) {
+      row = tpl.content.firstElementChild.cloneNode(true);
+      row.dataset.scope = key;
+      row.querySelector('.row-label').textContent = `This week (${key})`;
+      els.rows.appendChild(row);
+    }
+    fillRow(row, win, dimmed);
+  }
+  for (const [key, row] of existing) {
+    if (!keep.has(key)) row.remove();
+  }
 }
 
 function render(payload) {
@@ -89,10 +121,10 @@ function render(payload) {
   if (reading) {
     renderWindow('session', reading.session, stale);
     renderWindow('week', reading.week, stale);
-    renderWindow('opus', reading.opus, stale);
-    renderWindow('sonnet', reading.sonnet, stale);
+    syncScopedRows(reading.scoped, stale);
   } else {
-    ['session', 'week', 'opus', 'sonnet'].forEach((k) => rowEl(k).classList.add('hidden'));
+    ['session', 'week'].forEach((k) => rowEl(k).classList.add('hidden'));
+    syncScopedRows([], false);
   }
 
   // footer / updated label

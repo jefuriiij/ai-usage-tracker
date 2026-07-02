@@ -15,8 +15,9 @@ const sample = {
   reading: {
     session: { pct: 47, resetsAt: new Date(now + 43 * 60000).toISOString() },
     week: { pct: 52, resetsAt: new Date(now + (21 * 60 + 53) * 60000).toISOString() },
-    opus: null,
-    sonnet: { pct: 9, resetsAt: new Date(now + (21 * 60 + 53) * 60000).toISOString() },
+    scoped: [
+      { label: 'Fable', pct: 9, resetsAt: new Date(now + (21 * 60 + 53) * 60000).toISOString() },
+    ],
     updatedAt: now,
   },
 };

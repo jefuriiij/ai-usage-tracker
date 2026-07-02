@@ -83,17 +83,17 @@
         <div class="bar"><span></span></div>
         <div class="row-reset"></div>
       </div>
-      <div class="row hidden" data-key="opus">
-        <div class="row-top"><span class="row-label">This week (Opus)</span><span class="row-pct">–</span></div>
-        <div class="bar"><span></span></div>
-        <div class="row-reset"></div>
-      </div>
-      <div class="row hidden" data-key="sonnet">
-        <div class="row-top"><span class="row-label">This week (Sonnet)</span><span class="row-pct">–</span></div>
-        <div class="bar"><span></span></div>
-        <div class="row-reset"></div>
-      </div>
+      <!-- Model/surface-scoped weekly rows (e.g. "This week (Fable)") are created
+           dynamically by popup.js from reading.scoped, labeled by the API. -->
     </div>
+
+    <template id="scopedRowTpl">
+      <div class="row">
+        <div class="row-top"><span class="row-label"></span><span class="row-pct">–</span></div>
+        <div class="bar"><span></span></div>
+        <div class="row-reset"></div>
+      </div>
+    </template>
 
     <footer>
       <span class="updated" id="footNote"></span>
