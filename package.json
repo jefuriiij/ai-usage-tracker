@@ -1,13 +1,15 @@
 {
-  "name": "claude-usage-tracker",
-  "version": "1.0.7",
-  "description": "Passive Windows system-tray widget that shows your Claude session usage (read-only).",
+  "name": "ai-usage-tracker",
+  "version": "1.1.0",
+  "description": "Passive Windows system-tray widget that shows your Claude and Codex/ChatGPT usage (read-only).",
   "main": "main.js",
   "author": "Jeff",
   "license": "MIT",
   "scripts": {
     "start": "electron .",
+    "test": "node test-fetch.js",
     "icon": "electron build-icon.js",
+    "preview": "electron dev-preview.js",
     "dist": "electron-builder"
   },
   "devDependencies": {
@@ -15,8 +17,8 @@
     "electron-builder": "^24.13.3"
   },
   "build": {
-    "appId": "com.claudeusage.tracker",
-    "productName": "Claude Usage Tracker",
+    "appId": "com.aiusage.tracker",
+    "productName": "AI Usage Tracker",
     "directories": {
       "output": "dist",
       "buildResources": "build"
@@ -42,8 +44,8 @@
       "createStartMenuShortcut": true,
       "installerSidebar": "build/sidebar.bmp",
       "uninstallerSidebar": "build/sidebar.bmp",
-      "shortcutName": "Claude Usage Tracker",
-      "uninstallDisplayName": "Claude Usage Tracker"
+      "shortcutName": "AI Usage Tracker",
+      "uninstallDisplayName": "AI Usage Tracker"
     }
   }
 }

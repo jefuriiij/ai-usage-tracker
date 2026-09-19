@@ -4,16 +4,14 @@ const { app, Tray, Menu, BrowserWindow, screen, nativeImage, nativeTheme, ipcMai
 const path = require('path');
 const fs = require('fs');
 
-const credentials = require('./lib/credentials');
-const usage = require('./lib/usage');
+const providers = require('./lib/providers');
 const fmt = require('./lib/format');
 
 // ---- Config ---------------------------------------------------------------
-const POLL_INTERVAL_MS = 180_000; // 180s — endpoint is rate-limit sensitive
+const POLL_INTERVAL_MS = 180_000; // 180s — endpoints are rate-limit sensitive
 const BACKOFF_INTERVAL_MS = 300_000; // 300s after a 429
 const MIN_ADHOC_GAP_MS = 30_000; // throttle manual/refresh polls
 const POPUP_W = 320;
-const POPUP_H = 320;
 
 // ---- State ----------------------------------------------------------------
 let tray = null;
@@ -23,11 +21,14 @@ let menuIcons = {}; // cached nativeImages for the context-menu items
 let pollTimer = null;
 let lastPollAt = 0;
 
-/** The most recent good reading, kept so we can show it when stale. */
-let lastReading = null; // normalized usage object
-/** Current display status: 'ok' | 'stale' | 'not_found' | 'error' */
-let status = 'loading';
-let statusDetail = '';
+/**
+ * Per-provider display state, keyed by provider id:
+ *   { id, label, accent, consoleUrl, signInHint, refreshHint,
+ *     status: 'loading'|'ok'|'stale'|'expired'|'not_found'|'error',
+ *     statusDetail: string,
+ *     reading: object|null }   // last GOOD reading, kept so we can show it when stale
+ */
+const state = new Map();
 
 // ---------------------------------------------------------------------------
 // Single instance — a second launch just surfaces the existing one.
@@ -39,15 +40,16 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 // No dock/taskbar presence; this is a tray-only app.
-if (process.platform === 'win32') app.setAppUserModelId('com.claudeusage.tracker');
+if (process.platform === 'win32') app.setAppUserModelId('com.aiusage.tracker');
 
 app.whenReady().then(init);
 app.on('window-all-closed', (e) => e.preventDefault()); // stay alive in tray
 
 async function init() {
+  seedState();
   createIconWindow();
   tray = new Tray(await makeBadge('…', false));
-  tray.setToolTip('Claude Usage — starting…');
+  tray.setToolTip('AI Usage — starting…');
   tray.on('click', () => togglePopup());
   tray.on('right-click', showMenu);
   await loadMenuIcons();
@@ -61,6 +63,27 @@ async function init() {
 
   await poll(); // first read immediately
   pollTimer = setInterval(poll, POLL_INTERVAL_MS);
+}
+
+/**
+ * Pre-populate state for every provider that has credentials on disk, so the
+ * panel shows the right set of sections before the first poll resolves.
+ */
+function seedState() {
+  for (const p of providers.available()) {
+    if (state.has(p.id)) continue;
+    state.set(p.id, {
+      id: p.id,
+      label: p.label,
+      accent: p.accent,
+      consoleUrl: p.consoleUrl,
+      signInHint: p.signInHint,
+      refreshHint: p.refreshHint,
+      status: 'loading',
+      statusDetail: '',
+      reading: null,
+    });
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -119,45 +142,54 @@ async function loadMenuIcons() {
 // ---------------------------------------------------------------------------
 async function poll() {
   lastPollAt = Date.now();
-  let cred;
-  try {
-    cred = credentials.getAccessToken();
-  } catch (err) {
-    // No file / malformed → not-logged-in state, keep whatever we last had.
-    status = err.status === credentials.CredStatus.NOT_FOUND ? 'not_found' : 'error';
-    statusDetail = err.message;
-    return render();
-  }
+  seedState(); // a provider's CLI may have been installed/signed in since startup
 
-  if (cred.expired) {
-    // READ-ONLY: we never refresh. Show last-known dimmed + still-accurate countdown.
-    status = lastReading ? 'stale' : 'expired';
-    statusDetail = 'Token expired — open Claude Code to refresh.';
-    return render();
-  }
+  const results = await providers.pollAll();
+  let rateLimited = false;
 
-  try {
-    const raw = await usage.fetchRaw(cred.token);
-    maybeWriteDiscoveryLog(raw);
-    lastReading = usage.normalize(raw);
-    status = 'ok';
-    statusDetail = '';
-    // Recover from any prior backoff.
-    resetPollTimer(POLL_INTERVAL_MS);
-  } catch (err) {
-    if (err instanceof usage.UsageHttpError && err.status === 429) {
-      status = lastReading ? 'stale' : 'error';
-      statusDetail = 'Rate limited — backing off.';
-      resetPollTimer(BACKOFF_INTERVAL_MS);
-    } else if (err instanceof usage.UsageHttpError && err.status === 401) {
-      // Token rejected; treat like expired (no refresh in read-only mode).
-      status = lastReading ? 'stale' : 'expired';
-      statusDetail = 'Token rejected — open Claude Code to refresh.';
+  for (const r of results) {
+    const prev = state.get(r.id) || {};
+    const entry = {
+      id: r.id,
+      label: r.label,
+      accent: r.accent,
+      consoleUrl: r.consoleUrl,
+      signInHint: r.signInHint,
+      refreshHint: r.refreshHint,
+      status: prev.status,
+      statusDetail: prev.statusDetail || '',
+      reading: prev.reading || null,
+    };
+
+    if (r.result.ok) {
+      maybeWriteDiscoveryLog(r.id, r.result.raw);
+      entry.reading = r.result.reading;
+      entry.status = 'ok';
+      entry.statusDetail = '';
     } else {
-      status = lastReading ? 'stale' : 'error';
-      statusDetail = err.message || 'Network error.';
+      const { code, message } = r.result;
+      entry.statusDetail = message;
+      if (code === 'not_found') {
+        entry.status = 'not_found';
+      } else if (code === 'expired' || code === 'auth') {
+        // READ-ONLY: we never refresh. Show last-known dimmed, still-accurate countdown.
+        entry.status = entry.reading ? 'stale' : 'expired';
+      } else {
+        if (code === 'rate_limited') rateLimited = true;
+        entry.status = entry.reading ? 'stale' : 'error';
+      }
     }
+    state.set(r.id, entry);
   }
+
+  // Drop providers whose credentials vanished (CLI uninstalled / signed out).
+  const live = new Set(results.map((r) => r.id));
+  for (const id of [...state.keys()]) {
+    if (!live.has(id)) state.delete(id);
+  }
+
+  // One rate-limited provider backs the whole loop off; a clean pass recovers it.
+  resetPollTimer(rateLimited ? BACKOFF_INTERVAL_MS : POLL_INTERVAL_MS);
   render();
 }
 
@@ -174,14 +206,14 @@ function refreshNow() {
   poll();
 }
 
-// Write the first successful raw response once, to confirm field names for this
-// account type. Never overwritten after that.
-let discoveryWritten = false;
-function maybeWriteDiscoveryLog(raw) {
-  if (discoveryWritten) return;
-  discoveryWritten = true;
+// Write the first successful raw response per provider, to confirm field names
+// for this account type. Never overwritten after that.
+const discoveryWritten = new Set();
+function maybeWriteDiscoveryLog(id, raw) {
+  if (!raw || discoveryWritten.has(id)) return;
+  discoveryWritten.add(id);
   try {
-    const p = path.join(app.getPath('userData'), 'last-usage.json');
+    const p = path.join(app.getPath('userData'), `last-usage-${id}.json`);
     fs.writeFileSync(p, JSON.stringify(raw, null, 2), 'utf8');
   } catch {
     /* non-fatal */
@@ -191,14 +223,40 @@ function maybeWriteDiscoveryLog(raw) {
 // ---------------------------------------------------------------------------
 // Rendering: tray badge + tooltip + popup push
 // ---------------------------------------------------------------------------
-async function render() {
-  const stale = status === 'stale' || status === 'expired';
 
-  // --- Tray badge: dark gradient badge showing session % (dimmed if stale) ---
+/** Providers in registry order, so the panel never reshuffles between polls. */
+function ordered() {
+  return providers
+    .all()
+    .map((p) => state.get(p.id))
+    .filter(Boolean);
+}
+
+/**
+ * The provider the tray badge speaks for: the one closest to running out of
+ * its current session. That's the number you actually need at a glance.
+ */
+function headline() {
+  let best = null;
+  for (const e of ordered()) {
+    if (!e.reading || !e.reading.session) continue;
+    if (!best || e.reading.session.pct > best.reading.session.pct) best = e;
+  }
+  return best;
+}
+
+async function render() {
+  const entries = ordered();
+  const lead = headline();
+  // Dim the badge only when nothing we're showing is fresh.
+  const anyFresh = entries.some((e) => e.status === 'ok');
+  const stale = !anyFresh && entries.some((e) => e.status === 'stale' || e.status === 'expired');
+
+  // --- Tray badge: dark gradient badge showing the worst session % ---
   let text = '?';
-  if (lastReading && lastReading.session) {
-    text = String(fmt.roundPct(lastReading.session.pct));
-  } else if (status === 'not_found') {
+  if (lead) {
+    text = String(fmt.roundPct(lead.reading.session.pct));
+  } else if (entries.length && entries.every((e) => e.status === 'not_found')) {
     text = '!';
   }
 
@@ -212,39 +270,43 @@ async function render() {
   // --- Push to popup if open ---
   if (popup && !popup.isDestroyed()) {
     popup.webContents.send('usage', payload());
+    // Section count can change between polls (a CLI signs in / out).
+    if (popup.isVisible()) positionPopup();
   }
   rebuildMenu();
 }
 
 function buildTooltip() {
-  // Windows tray tooltips support newlines (and ~128 chars), so we lay the
-  // limits out one-per-line with a "Claude Usage" header instead of one run-on.
-  if (status === 'not_found') return 'Claude Usage\nNot signed in — open Claude Code';
-  if (!lastReading || !lastReading.session) return 'Claude Usage\nWaiting for data…';
-  const s = lastReading.session;
-  const lines = ['Claude Usage'];
-  let session = `Session: ${fmt.roundPct(s.pct)}%`;
-  const r = fmt.resetsIn(s.resetsAt);
-  if (r) session += ` (resets in ${r})`;
-  lines.push(session);
-  if (lastReading.week) lines.push(`Week: ${fmt.roundPct(lastReading.week.pct)}%`);
-  for (const sc of lastReading.scoped || []) {
-    lines.push(`${sc.label} only: ${fmt.roundPct(sc.pct)}%`);
-  }
-  // Keep the stale note short so the whole tooltip stays under the char cap.
-  if (status === 'stale' || status === 'expired') {
-    lines.push(`(as of ${fmt.clockTime(lastReading.updatedAt)})`);
+  // Windows tray tooltips support newlines and ~128 chars. With two providers
+  // the per-window breakdown no longer fits, so each provider gets one compact
+  // line — the popup carries the detail.
+  const entries = ordered();
+  if (!entries.length) return 'AI Usage\nNo AI CLI signed in';
+
+  const lines = ['AI Usage'];
+  for (const e of entries) {
+    if (e.status === 'not_found') {
+      lines.push(`${e.label}: not signed in`);
+      continue;
+    }
+    if (!e.reading || !e.reading.session) {
+      lines.push(`${e.label}: waiting…`);
+      continue;
+    }
+    const s = e.reading.session;
+    let line = `${e.label}: ${fmt.roundPct(s.pct)}%`;
+    const r = fmt.resetsInShort(s.resetsAt);
+    if (r) line += ` (${r})`;
+    if (e.reading.week) line += ` · wk ${fmt.roundPct(e.reading.week.pct)}%`;
+    if (e.status === 'stale' || e.status === 'expired') line += ' — stale';
+    lines.push(line);
   }
   return lines.join('\n');
 }
 
 /** The data object handed to the popup renderer. */
 function payload() {
-  return {
-    status,
-    statusDetail,
-    reading: lastReading,
-  };
+  return { providers: ordered() };
 }
 
 // ---------------------------------------------------------------------------
@@ -253,7 +315,7 @@ function payload() {
 function createPopup() {
   popup = new BrowserWindow({
     width: POPUP_W,
-    height: POPUP_H,
+    height: popupHeight(),
     show: false,
     frame: false,
     resizable: false,
@@ -276,15 +338,23 @@ function createPopup() {
 
 /** Height that fits exactly the rows we'll show (so there's no dead space). */
 function popupHeight() {
-  let rows = 0;
-  if (lastReading) {
-    if (lastReading.session) rows++;
-    if (lastReading.week) rows++;
-    rows += (lastReading.scoped || []).length;
+  const entries = ordered();
+  let h = 92; // header + footer chrome
+  if (!entries.length) return h + 70;
+
+  for (const e of entries) {
+    h += 30; // provider section header
+    let rows = 0;
+    if (e.reading) {
+      if (e.reading.session) rows++;
+      if (e.reading.week) rows++;
+      rows += (e.reading.scoped || []).length;
+    }
+    if (e.status !== 'ok' && e.statusDetail) h += 42; // per-provider banner
+    h += rows ? 76 * rows : 24; // rows, or a one-line placeholder
+    h += 10; // gap below the section
   }
-  rows = Math.max(rows, 1);
-  const bannerShown = status !== 'ok' && !!statusDetail;
-  return 104 + 82 * rows + (bannerShown ? 46 : 0);
+  return h;
 }
 
 function positionPopup() {
@@ -318,6 +388,15 @@ function togglePopup(forceShow) {
 function rebuildMenu() {
   if (!tray) return;
   const loginEnabled = app.getLoginItemSettings().openAtLogin;
+
+  // One "open usage" item per signed-in provider, so the menu reflects exactly
+  // what the panel is tracking.
+  const usageItems = ordered().map((e) => ({
+    label: `Open ${e.label} usage`,
+    icon: menuIcons.openUsage,
+    click: () => shell.openExternal(e.consoleUrl),
+  }));
+
   const menu = Menu.buildFromTemplate([
     { label: 'Show usage panel', icon: menuIcons.showPanel, click: () => togglePopup(true) },
     { label: 'Refresh now', icon: menuIcons.refresh, click: refreshNow },
@@ -332,11 +411,7 @@ function rebuildMenu() {
         rebuildMenu();
       },
     },
-    {
-      label: 'Open claude.ai usage',
-      icon: menuIcons.openUsage,
-      click: () => shell.openExternal('https://claude.ai/settings/usage'),
-    },
+    ...usageItems,
     { type: 'separator' },
     { label: 'Quit', icon: menuIcons.quit, click: () => { tray.destroy(); app.exit(0); } },
   ]);
@@ -352,4 +427,7 @@ function showMenu() {
 // ---------------------------------------------------------------------------
 ipcMain.handle('refresh', () => { refreshNow(); return payload(); });
 ipcMain.on('quit', () => { if (tray) tray.destroy(); app.exit(0); });
-ipcMain.on('open-claude', () => shell.openExternal('https://claude.ai/settings/usage'));
+ipcMain.on('open-console', (_e, id) => {
+  const entry = state.get(id) || providers.byId(id);
+  if (entry && entry.consoleUrl) shell.openExternal(entry.consoleUrl);
+});

@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('api', {
   },
   /** Ask main to poll now (throttled there). Resolves with the latest payload. */
   refresh: () => ipcRenderer.invoke('refresh'),
-  openClaude: () => ipcRenderer.send('open-claude'),
+  /** Open a provider's usage page in the default browser, by provider id. */
+  openConsole: (id) => ipcRenderer.send('open-console', String(id)),
   quit: () => ipcRenderer.send('quit'),
 });

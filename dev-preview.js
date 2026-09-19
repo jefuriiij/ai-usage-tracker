@@ -3,30 +3,103 @@
 // Dev-only: renders the popup UI and the tray badge to PNGs so we can eyeball
 // them without a live tray. Run:  npx electron dev-preview.js
 // Produces popup-preview.png and badge-preview.png, then exits.
+//
+//   npx electron dev-preview.js          # fixed sample data (two providers)
+//   npx electron dev-preview.js --live   # your real signed-in providers
 
 const { app, BrowserWindow, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
+const providers = require('./lib/providers');
+
+const live = process.argv.includes('--live');
 const now = Date.now();
+
+/** Fixed two-provider sample so the preview is deterministic. */
 const sample = {
-  status: 'ok',
-  statusDetail: '',
-  reading: {
-    session: { pct: 47, resetsAt: new Date(now + 43 * 60000).toISOString() },
-    week: { pct: 52, resetsAt: new Date(now + (21 * 60 + 53) * 60000).toISOString() },
-    scoped: [
-      { label: 'Fable', pct: 9, resetsAt: new Date(now + (21 * 60 + 53) * 60000).toISOString() },
-    ],
-    updatedAt: now,
-  },
+  providers: [
+    {
+      id: 'claude',
+      label: 'Claude',
+      accent: '#d97757',
+      consoleUrl: 'https://claude.ai/settings/usage',
+      signInHint: 'Sign in via Claude Code',
+      refreshHint: 'Open Claude Code to refresh',
+      status: 'ok',
+      statusDetail: '',
+      reading: {
+        session: { pct: 47, resetsAt: new Date(now + 43 * 60000).toISOString() },
+        week: { pct: 52, resetsAt: new Date(now + (21 * 60 + 53) * 60000).toISOString() },
+        scoped: [{ label: 'Fable', pct: 9, resetsAt: new Date(now + (21 * 60 + 53) * 60000).toISOString() }],
+        updatedAt: now,
+      },
+    },
+    {
+      id: 'codex',
+      label: 'Codex',
+      accent: '#10a37f',
+      consoleUrl: 'https://chatgpt.com/codex/settings/usage',
+      signInHint: 'Sign in via Codex CLI',
+      refreshHint: 'Open Codex CLI to refresh',
+      status: 'ok',
+      statusDetail: '',
+      reading: {
+        session: { pct: 3, resetsAt: new Date(now + (4 * 60 + 12) * 60000).toISOString() },
+        week: { pct: 16, resetsAt: new Date(now + 78 * 60 * 60000).toISOString() },
+        scoped: [],
+        updatedAt: now,
+        plan: 'plus',
+        credits: null,
+      },
+    },
+  ],
 };
 
+/** Mirror of main.js popupHeight() so the screenshot matches the real window. */
+function popupHeight(entries) {
+  let h = 92;
+  if (!entries.length) return h + 70;
+  for (const e of entries) {
+    h += 30;
+    let rows = 0;
+    if (e.reading) {
+      if (e.reading.session) rows++;
+      if (e.reading.week) rows++;
+      rows += (e.reading.scoped || []).length;
+    }
+    if (e.status !== 'ok' && e.statusDetail) h += 42;
+    h += rows ? 76 * rows : 24;
+    h += 10;
+  }
+  return h;
+}
+
+async function buildPayload() {
+  if (!live) return sample;
+  const results = await providers.pollAll();
+  return {
+    providers: results.map((r) => ({
+      id: r.id,
+      label: r.label,
+      accent: r.accent,
+      consoleUrl: r.consoleUrl,
+      signInHint: r.signInHint,
+      refreshHint: r.refreshHint,
+      status: r.result.ok ? 'ok' : r.result.code === 'not_found' ? 'not_found' : 'error',
+      statusDetail: r.result.ok ? '' : r.result.message,
+      reading: r.result.ok ? r.result.reading : null,
+    })),
+  };
+}
+
 app.whenReady().then(async () => {
+  const payload = await buildPayload();
+
   // ---- popup preview ----
   const win = new BrowserWindow({
     width: 320,
-    height: 320,
+    height: popupHeight(payload.providers),
     show: false,
     frame: false,
     backgroundColor: '#262624',
@@ -37,7 +110,7 @@ app.whenReady().then(async () => {
     },
   });
   await win.loadFile(path.join(__dirname, 'popup.html'));
-  win.webContents.send('usage', sample);
+  win.webContents.send('usage', payload);
   await new Promise((r) => setTimeout(r, 700));
   const shot = await win.webContents.capturePage();
   fs.writeFileSync(path.join(__dirname, 'popup-preview.png'), shot.toPNG());

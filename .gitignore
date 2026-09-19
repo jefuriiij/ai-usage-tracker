@@ -17,6 +17,10 @@ releases/
 # Logs / local runtime data
 *.log
 last-usage.json
+last-usage-*.json
+
+# Scratch harnesses (throwaway verification scripts)
+scratch-*
 
 # OS / editor cruft
 Thumbs.db

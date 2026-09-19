@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'self';" />
-  <title>Claude Usage</title>
+  <title>AI Usage</title>
   <style>
     :root {
       --bg: #262624;
@@ -12,7 +12,6 @@
       --muted: #9b9a96;
       --track: #46453f;
       --border: #3a3a37;
-      --accent: #d97757; /* claude coral */
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body {
@@ -27,31 +26,40 @@
     }
     .wrap { padding: 14px 16px 12px; height: 100%; display: flex; flex-direction: column; }
 
-    header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-    .title { font-size: 13px; font-weight: 600; letter-spacing: .2px; display: flex; align-items: center; gap: 8px; }
-    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+    header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    .title { font-size: 13px; font-weight: 600; letter-spacing: .2px; }
+
+    /* ---- provider section ---- */
+    .providers { display: flex; flex-direction: column; gap: 10px; flex: 1; overflow: hidden; }
+    .provider { display: flex; flex-direction: column; gap: 8px; }
+
+    .phead { display: flex; align-items: center; gap: 7px; }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); flex: none; }
     .dot.ok { background: #30a46c; }
     .dot.stale { background: #f5a623; }
     .dot.bad { background: #e5484d; }
+    .pname {
+      font-size: 11px; font-weight: 600; letter-spacing: .5px; text-transform: uppercase;
+      cursor: pointer;
+    }
+    .pname:hover { text-decoration: underline; }
+    .pmeta { font-size: 10.5px; color: var(--muted); margin-left: auto; font-variant-numeric: tabular-nums; }
 
     .banner {
       background: #3a2f28; color: #f0c8a8; border: 1px solid #5a4636;
-      border-radius: 8px; padding: 7px 10px; font-size: 11.5px; margin-bottom: 10px;
-      line-height: 1.35; display: none;
+      border-radius: 8px; padding: 6px 9px; font-size: 11px; line-height: 1.35;
     }
-    .banner.show { display: block; }
 
-    .rows { display: flex; flex-direction: column; gap: 10px; flex: 1; }
-    .row { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
-    .row.hidden { display: none; }
-    .row-top { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 7px; }
-    .row-label { font-weight: 500; color: var(--text); }
+    .row { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 9px 11px; }
+    .row-top { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 6px; }
+    .row-label { font-weight: 500; color: var(--text); font-size: 12.5px; }
     .row-pct { font-variant-numeric: tabular-nums; font-weight: 600; font-size: 14px; }
     .bar { height: 6px; background: var(--track); border-radius: 4px; overflow: hidden; }
     .bar > span { display: block; height: 100%; width: 0%; border-radius: 4px; transition: width .35s ease; }
-    .row-reset { margin-top: 6px; font-size: 11px; color: var(--muted); }
+    .row-reset { margin-top: 5px; font-size: 11px; color: var(--muted); }
+    .empty { font-size: 11.5px; color: var(--muted); }
 
-    footer { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); }
+    footer { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--border); }
     .updated { font-size: 11px; color: var(--muted); }
     .btns { display: flex; gap: 6px; }
     button {
@@ -66,28 +74,24 @@
 <body>
   <div class="wrap">
     <header>
-      <div class="title"><span id="statusDot" class="dot"></span> Claude usage</div>
+      <div class="title">AI usage</div>
       <span class="updated" id="updated"></span>
     </header>
 
-    <div class="banner" id="banner"></div>
+    <!-- One .provider section per signed-in CLI, built by popup.js. -->
+    <div class="providers" id="providers"></div>
 
-    <div class="rows" id="rows">
-      <div class="row hidden" data-key="session">
-        <div class="row-top"><span class="row-label">Current session</span><span class="row-pct">–</span></div>
-        <div class="bar"><span></span></div>
-        <div class="row-reset"></div>
-      </div>
-      <div class="row hidden" data-key="week">
-        <div class="row-top"><span class="row-label">This week (all models)</span><span class="row-pct">–</span></div>
-        <div class="bar"><span></span></div>
-        <div class="row-reset"></div>
-      </div>
-      <!-- Model/surface-scoped weekly rows (e.g. "This week (Fable)") are created
-           dynamically by popup.js from reading.scoped, labeled by the API. -->
-    </div>
+    <template id="providerTpl">
+      <section class="provider">
+        <div class="phead">
+          <span class="dot"></span>
+          <span class="pname"></span>
+          <span class="pmeta"></span>
+        </div>
+      </section>
+    </template>
 
-    <template id="scopedRowTpl">
+    <template id="rowTpl">
       <div class="row">
         <div class="row-top"><span class="row-label"></span><span class="row-pct">–</span></div>
         <div class="bar"><span></span></div>

@@ -1,7 +1,45 @@
 # Changelog
 
-All notable changes to **Claude Usage Tracker** are recorded here.
-Each released version ships a matching `releases/Claude Usage Tracker Setup <version>.exe`.
+All notable changes to **AI Usage Tracker** (formerly Claude Usage Tracker) are
+recorded here. Each released version ships a matching
+`releases/AI Usage Tracker Setup <version>.exe`.
+
+## [1.1.0] — 2026-09-19
+
+### Added
+- **Codex / ChatGPT usage tracking.** A second provider reads the Codex CLI's
+  OAuth token from `~/.codex/auth.json` (honouring `$CODEX_HOME`) and polls
+  `chatgpt.com/backend-api/wham/usage` for the 5-hour and 7-day windows, plus
+  plan tier, credit balance and the code-review limit when present. Same
+  read-only contract as Claude: the file is never written and the
+  `refresh_token` is never used.
+- **Provider registry** (`lib/providers/`). Each provider exports
+  `{ id, label, accent, consoleUrl, signInHint, refreshHint, isAvailable, poll }`
+  and normalizes to the shared `{ session, week, scoped[], updatedAt }` shape.
+  Adding a third provider needs no changes to the tray, menu or panel.
+- `npm test` runs the headless smoke test across every available provider
+  (`node test-fetch.js [id] [--raw]`); `npm run preview` renders the panel, and
+  `dev-preview.js --live` does it against your real accounts.
+
+### Changed
+- Renamed to **AI Usage Tracker** (`ai-usage-tracker`, appId `com.aiusage.tracker`).
+- The panel now stacks one section per signed-in CLI, each with its own status
+  dot, accent-coloured name (click it to open that provider's usage page),
+  banner and rows. Window height is computed from the sections actually shown.
+- Tray badge reports the **highest** current-session percentage across
+  providers; the tooltip gives each provider one compact line.
+- The right-click menu lists one "Open &lt;provider&gt; usage" item per signed-in
+  provider instead of a single hardcoded claude.ai link.
+- Providers poll concurrently and fail independently — an expired Codex token
+  no longer affects the Claude section, and one 429 backs the loop off to 300s
+  without blanking anything.
+- Providers with no credentials on disk are skipped entirely, so a
+  Claude-only machine sees the same single-section panel as before.
+- The per-provider discovery log is now
+  `%APPDATA%\ai-usage-tracker\last-usage-<id>.json`.
+
+### Fixed
+- Removed a duplicated "Files" table in the README.
 
 ## [1.0.7] — 2026-07-02
 
