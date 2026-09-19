@@ -3,6 +3,7 @@ node_modules/
 
 # Build output (electron-builder, etc.)
 dist/
+dist2/
 out/
 *.exe
 
