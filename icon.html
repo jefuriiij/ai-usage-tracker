@@ -15,12 +15,14 @@
   <script>
     /**
      * Draw a 32x32 tray badge: a dark warm-gradient rounded square (espresso
-     * fade) with a large bold white number on it.
-     * @param {string} text   e.g. "37", "100", "?", "—"
-     * @param {boolean} stale dim the badge when showing stale data
+     * fade) with a large bold white number on it, and an optional accent
+     * stripe along the bottom identifying which provider the number belongs to.
+     * @param {string} text    e.g. "37", "100", "?", "—"
+     * @param {boolean} stale  dim the badge when showing stale data
+     * @param {string} [accent] CSS color for the bottom stripe (omit for none)
      * @returns {string} PNG data URL
      */
-    function drawBadge(text, stale) {
+    function drawBadge(text, stale, accent) {
       const canvas = document.getElementById('c');
       const ctx = canvas.getContext('2d');
       ctx.clearRect(0, 0, 32, 32);
@@ -48,21 +50,34 @@
       ctx.fillStyle = g;
       ctx.fill();
 
+      // Provider accent stripe along the bottom edge, clipped to the rounded
+      // corners. This is what tells you whose percentage you're looking at
+      // when the badge tracks whichever provider is highest.
+      if (accent) {
+        ctx.save();
+        roundPath();
+        ctx.clip();
+        ctx.fillStyle = accent;
+        ctx.fillRect(0, 28, 32, 4);
+        ctx.restore();
+      }
+
       // Faint hairline so the dark icon keeps an edge on a dark taskbar.
       roundPath();
       ctx.lineWidth = 1;
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.14)';
       ctx.stroke();
 
-      // Number — large, bold, white.
+      // Number — large, bold, white. Nudged up when a stripe is present so the
+      // glyphs stay optically centred in the remaining space.
       ctx.globalAlpha = stale ? 0.7 : 1;
       ctx.fillStyle = '#ffffff';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       const len = String(text).length;
-      const size = len >= 3 ? 16 : len === 2 ? 22 : 24;
+      const size = len >= 3 ? 15 : len === 2 ? 21 : 23;
       ctx.font = `700 ${size}px "Segoe UI", system-ui, sans-serif`;
-      ctx.fillText(String(text), 16, 17);
+      ctx.fillText(String(text), 16, accent ? 15 : 17);
 
       return canvas.toDataURL('image/png');
     }
@@ -70,7 +85,7 @@
     /**
      * Draw a small monochrome glyph for a tray context-menu item. Rendered in
      * the given color so it can match the system menu theme (light vs dark).
-     * @param {string} name  'panel' | 'refresh' | 'external' | 'power'
+     * @param {string} name  'panel' | 'refresh' | 'external' | 'power' | 'badge'
      * @param {string} color CSS color (e.g. 'rgba(255,255,255,0.85)')
      * @param {number} size  output px (16 for menus; larger for previews)
      * @returns {string} PNG data URL
@@ -141,6 +156,16 @@
         x.arc(cx, cy, r, (-60) * Math.PI / 180, 240 * Math.PI / 180);
         x.stroke();
         x.beginPath(); x.moveTo(8, 3.3); x.lineTo(8, 8.2); x.stroke();
+      } else if (name === 'badge') {
+        // Miniature tray badge: rounded square with a filled stripe along the
+        // bottom — the "which provider does the icon show" submenu.
+        rr(3, 2.6, 10, 10.8, 2.2);
+        x.stroke();
+        x.save();
+        rr(3, 2.6, 10, 10.8, 2.2);
+        x.clip();
+        x.fillRect(3, 10.8, 10, 2.6);
+        x.restore();
       }
       return cv.toDataURL('image/png');
     }

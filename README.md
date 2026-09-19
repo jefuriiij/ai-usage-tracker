@@ -4,8 +4,10 @@ A passive Windows system-tray widget that shows your **Claude** and
 **Codex / ChatGPT** usage — the same figures as each provider's own "usage
 limits" page — without opening a browser.
 
-- **Tray icon** shows the highest current-session percentage across your
-  providers at a glance (green → amber → red).
+- **Tray icon** shows a session percentage at a glance (green → amber → red).
+  With two providers signed in, a coloured stripe along the bottom of the badge
+  says whose number it is, and you choose the source from the right-click menu:
+  **Tray icon shows → Highest usage / Claude / Codex**. The choice persists.
 - **Click the icon** for a panel with one section per signed-in CLI: Current
   session (5-hour), This week, and any per-model or scoped limits, each with a
   live reset countdown.
@@ -59,7 +61,15 @@ npm start
 ```
 
 The app lives in the tray (no taskbar button). Right-click the tray icon for:
-**Show usage panel · Refresh now · Start at login · Open &lt;provider&gt; usage · Quit**.
+**Show usage panel · Refresh now · Tray icon shows ▸ · Start at login ·
+Open &lt;provider&gt; usage · Quit**.
+
+**Tray icon shows** picks which provider the badge number belongs to —
+*Highest usage* (follows whichever is closest to its limit), or a specific
+provider pinned. It only appears when more than one provider is signed in, and
+the choice is saved to `%APPDATA%\ai-usage-tracker\settings.json`. Pin a
+provider that later signs out and the badge quietly reverts to *Highest usage*.
+
 There's one "Open … usage" item per signed-in provider. In the panel, clicking a
 provider's name opens the same page.
 
@@ -111,6 +121,7 @@ uninstaller in *Add/Remove Programs*.
 | `lib/credentials.js` | **Read-only** reader for `~/.claude/.credentials.json` |
 | `lib/usage.js` | Calls `/api/oauth/usage`, normalizes the response |
 | `lib/format.js` | Percent rounding, status colors, "resets in" formatting |
+| `lib/settings.js` | Tiny JSON preference store in `userData` (tray-badge choice) |
 | `icon.html` | Hidden canvas renderer that paints the tray badge number |
 | `preload.js` | Locked-down IPC bridge for the popup |
 | `popup.html` / `popup.js` | The usage panel UI |

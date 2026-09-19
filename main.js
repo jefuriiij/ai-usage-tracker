@@ -5,6 +5,7 @@ const path = require('path');
 const fs = require('fs');
 
 const providers = require('./lib/providers');
+const settings = require('./lib/settings');
 const fmt = require('./lib/format');
 
 // ---- Config ---------------------------------------------------------------
@@ -12,6 +13,9 @@ const POLL_INTERVAL_MS = 180_000; // 180s — endpoints are rate-limit sensitive
 const BACKOFF_INTERVAL_MS = 300_000; // 300s after a 429
 const MIN_ADHOC_GAP_MS = 30_000; // throttle manual/refresh polls
 const POPUP_W = 320;
+
+/** Tray badge source: 'auto' = whichever provider is closest to its limit. */
+const BADGE_AUTO = 'auto';
 
 // ---- State ----------------------------------------------------------------
 let tray = null;
@@ -30,6 +34,13 @@ let lastPollAt = 0;
  */
 const state = new Map();
 
+/**
+ * Which provider the tray badge speaks for: a provider id, or BADGE_AUTO to
+ * follow whichever one is closest to its session limit. Persisted across
+ * restarts; loaded in init() once userData is available.
+ */
+let badgeSource = BADGE_AUTO;
+
 // ---------------------------------------------------------------------------
 // Single instance — a second launch just surfaces the existing one.
 // ---------------------------------------------------------------------------
@@ -46,9 +57,12 @@ app.whenReady().then(init);
 app.on('window-all-closed', (e) => e.preventDefault()); // stay alive in tray
 
 async function init() {
+  settings.init(app.getPath('userData'));
+  badgeSource = settings.get('badgeSource', BADGE_AUTO);
+
   seedState();
   createIconWindow();
-  tray = new Tray(await makeBadge('…', false));
+  tray = new Tray(await makeBadge('…', false, null));
   tray.setToolTip('AI Usage — starting…');
   tray.on('click', () => togglePopup());
   tray.on('right-click', showMenu);
@@ -100,12 +114,14 @@ function createIconWindow() {
 }
 
 /** Ask the hidden renderer to paint a badge and return it as a nativeImage. */
-async function makeBadge(text, stale) {
+async function makeBadge(text, stale, accent) {
   // Wait for the renderer to be ready on the very first call.
   if (iconWin.webContents.isLoading()) {
     await new Promise((res) => iconWin.webContents.once('did-finish-load', res));
   }
-  const js = `drawBadge(${JSON.stringify(String(text))}, ${stale ? 'true' : 'false'})`;
+  const js = `drawBadge(${JSON.stringify(String(text))}, ${stale ? 'true' : 'false'}, ${
+    accent ? JSON.stringify(accent) : 'null'
+  })`;
   const dataUrl = await iconWin.webContents.executeJavaScript(js);
   const img = nativeImage.createFromDataURL(dataUrl);
   return img;
@@ -122,7 +138,7 @@ async function loadMenuIcons() {
     await new Promise((res) => iconWin.webContents.once('did-finish-load', res));
   }
   const color = nativeTheme.shouldUseDarkColors ? 'rgba(255, 255, 255, 0.85)' : 'rgba(0, 0, 0, 0.72)';
-  const want = { showPanel: 'panel', refresh: 'refresh', openUsage: 'external', quit: 'power' };
+  const want = { showPanel: 'panel', refresh: 'refresh', openUsage: 'external', quit: 'power', badge: 'badge' };
   const out = {};
   for (const [key, glyph] of Object.entries(want)) {
     try {
@@ -233,26 +249,48 @@ function ordered() {
 }
 
 /**
- * The provider the tray badge speaks for: the one closest to running out of
- * its current session. That's the number you actually need at a glance.
+ * The provider the tray badge speaks for.
+ *
+ * Pinned to one provider, that provider always wins — even mid-poll or while
+ * stale, so the number never silently switches owners behind your back. If the
+ * pinned provider signs out it falls through to auto rather than showing "?".
+ * On 'auto', it's whichever provider is closest to running out of its current
+ * session: the number you actually need at a glance.
  */
 function headline() {
+  const entries = ordered();
+
+  if (badgeSource !== BADGE_AUTO) {
+    const pinned = entries.find((e) => e.id === badgeSource);
+    if (pinned && pinned.reading && pinned.reading.session) return pinned;
+    if (pinned) return null; // signed in but no reading yet — show "?", not someone else's %
+  }
+
   let best = null;
-  for (const e of ordered()) {
+  for (const e of entries) {
     if (!e.reading || !e.reading.session) continue;
     if (!best || e.reading.session.pct > best.reading.session.pct) best = e;
   }
   return best;
 }
 
+/** True when the pinned provider is gone from the panel (CLI signed out). */
+function pinnedMissing() {
+  return badgeSource !== BADGE_AUTO && !state.has(badgeSource);
+}
+
 async function render() {
   const entries = ordered();
+  // A pin pointing at a provider that's no longer signed in silently degrades
+  // to auto, so the badge keeps showing something useful.
+  if (pinnedMissing()) badgeSource = BADGE_AUTO;
+
   const lead = headline();
   // Dim the badge only when nothing we're showing is fresh.
   const anyFresh = entries.some((e) => e.status === 'ok');
   const stale = !anyFresh && entries.some((e) => e.status === 'stale' || e.status === 'expired');
 
-  // --- Tray badge: dark gradient badge showing the worst session % ---
+  // --- Tray badge: dark gradient badge showing the chosen session % ---
   let text = '?';
   if (lead) {
     text = String(fmt.roundPct(lead.reading.session.pct));
@@ -260,8 +298,12 @@ async function render() {
     text = '!';
   }
 
+  // Accent stripe identifies whose number this is — but only when there's more
+  // than one provider to confuse it with.
+  const accent = lead && entries.length > 1 ? lead.accent : null;
+
   try {
-    tray.setImage(await makeBadge(text, stale));
+    tray.setImage(await makeBadge(text, stale, accent));
   } catch {
     /* ignore transient renderer issues */
   }
@@ -283,18 +325,22 @@ function buildTooltip() {
   const entries = ordered();
   if (!entries.length) return 'AI Usage\nNo AI CLI signed in';
 
+  const lead = headline();
   const lines = ['AI Usage'];
   for (const e of entries) {
+    // A marker on the provider the badge number belongs to, so the tooltip
+    // explains the icon rather than just repeating it.
+    const mark = entries.length > 1 && lead && e.id === lead.id ? '● ' : '   ';
     if (e.status === 'not_found') {
-      lines.push(`${e.label}: not signed in`);
+      lines.push(`${mark}${e.label}: not signed in`);
       continue;
     }
     if (!e.reading || !e.reading.session) {
-      lines.push(`${e.label}: waiting…`);
+      lines.push(`${mark}${e.label}: waiting…`);
       continue;
     }
     const s = e.reading.session;
-    let line = `${e.label}: ${fmt.roundPct(s.pct)}%`;
+    let line = `${mark}${e.label}: ${fmt.roundPct(s.pct)}%`;
     const r = fmt.resetsInShort(s.resetsAt);
     if (r) line += ` (${r})`;
     if (e.reading.week) line += ` · wk ${fmt.roundPct(e.reading.week.pct)}%`;
@@ -388,19 +434,53 @@ function togglePopup(forceShow) {
 function rebuildMenu() {
   if (!tray) return;
   const loginEnabled = app.getLoginItemSettings().openAtLogin;
+  const entries = ordered();
 
   // One "open usage" item per signed-in provider, so the menu reflects exactly
   // what the panel is tracking.
-  const usageItems = ordered().map((e) => ({
+  const usageItems = entries.map((e) => ({
     label: `Open ${e.label} usage`,
     icon: menuIcons.openUsage,
     click: () => shell.openExternal(e.consoleUrl),
   }));
 
+  // "Tray icon shows" — pick which provider the badge number belongs to.
+  // Only meaningful with more than one provider signed in, so it's hidden
+  // otherwise rather than shown as a pointless one-option submenu.
+  const lead = headline();
+  const badgeItems =
+    entries.length > 1
+      ? [
+          {
+            label: 'Tray icon shows',
+            icon: menuIcons.badge,
+            submenu: [
+              {
+                label:
+                  lead && badgeSource === BADGE_AUTO
+                    ? `Highest usage (now ${lead.label})`
+                    : 'Highest usage',
+                type: 'radio',
+                checked: badgeSource === BADGE_AUTO,
+                click: () => setBadgeSource(BADGE_AUTO),
+              },
+              { type: 'separator' },
+              ...entries.map((e) => ({
+                label: e.label,
+                type: 'radio',
+                checked: badgeSource === e.id,
+                click: () => setBadgeSource(e.id),
+              })),
+            ],
+          },
+        ]
+      : [];
+
   const menu = Menu.buildFromTemplate([
     { label: 'Show usage panel', icon: menuIcons.showPanel, click: () => togglePopup(true) },
     { label: 'Refresh now', icon: menuIcons.refresh, click: refreshNow },
     { type: 'separator' },
+    ...badgeItems,
     {
       // Checkbox item: the check state is its indicator, so no custom icon.
       label: 'Start at login',
@@ -416,6 +496,13 @@ function rebuildMenu() {
     { label: 'Quit', icon: menuIcons.quit, click: () => { tray.destroy(); app.exit(0); } },
   ]);
   tray.setContextMenu(menu);
+}
+
+/** Persist the tray-badge choice and repaint immediately. */
+function setBadgeSource(id) {
+  badgeSource = id;
+  settings.set('badgeSource', id);
+  render(); // repaints the badge, tooltip and menu — no refetch needed
 }
 
 function showMenu() {

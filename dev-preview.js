@@ -116,37 +116,46 @@ app.whenReady().then(async () => {
   fs.writeFileSync(path.join(__dirname, 'popup-preview.png'), shot.toPNG());
   console.log('wrote popup-preview.png');
 
-  // ---- badge previews (three states) ----
+  // ---- badge previews (incl. the provider accent stripe) ----
   const iconWin = new BrowserWindow({ width: 64, height: 64, show: false });
   await iconWin.loadFile(path.join(__dirname, 'icon.html'));
+  const CLAUDE_ACCENT = '#d97757';
+  const CODEX_ACCENT = '#10a37f';
   const states = [
-    ['47', false, 'badge-47.png'],
-    ['9', false, 'badge-09.png'],
-    ['100', true, 'badge-100-stale.png'],
+    ['47', false, null, 'badge-47.png'],
+    ['9', false, null, 'badge-09.png'],
+    ['100', true, null, 'badge-100-stale.png'],
+    ['47', false, CLAUDE_ACCENT, 'badge-47-claude.png'],
+    ['16', false, CODEX_ACCENT, 'badge-16-codex.png'],
+    ['88', true, CLAUDE_ACCENT, 'badge-88-claude-stale.png'],
   ];
   const urls = {};
-  for (const [text, stale, file] of states) {
+  for (const [text, stale, accent, file] of states) {
     const url = await iconWin.webContents.executeJavaScript(
-      `drawBadge(${JSON.stringify(text)}, ${stale})`
+      `drawBadge(${JSON.stringify(text)}, ${stale}, ${accent ? JSON.stringify(accent) : 'null'})`
     );
     urls[file] = url;
     fs.writeFileSync(path.join(__dirname, file), nativeImage.createFromDataURL(url).toPNG());
     console.log('wrote', file);
   }
 
-  // ---- tray simulation: badge at real tray sizes on dark + light taskbars ----
+  // ---- tray simulation: real tray sizes on dark + light taskbars ----
+  // Top strip: plain badge. Bottom strip: the two accent-striped variants, to
+  // check the stripe is still legible at 16px.
   const simUrl = await iconWin.webContents.executeJavaScript(`(async () => {
     const c = document.createElement('canvas'); c.width = 260; c.height = 56;
     const ctx = c.getContext('2d');
     ctx.fillStyle = '#1d1d1d'; ctx.fillRect(0, 0, 260, 28);   // Win11 dark taskbar
     ctx.fillStyle = '#e9e6df'; ctx.fillRect(0, 28, 260, 28);  // light taskbar
     const load = (u) => new Promise((r) => { const i = new Image(); i.onload = () => r(i); i.src = u; });
-    const b = await load(${JSON.stringify(urls['badge-47.png'])});
+    const plain = await load(${JSON.stringify(urls['badge-47.png'])});
+    const cl = await load(${JSON.stringify(urls['badge-47-claude.png'])});
+    const cx = await load(${JSON.stringify(urls['badge-16-codex.png'])});
     const sizes = [16, 20, 24];
     let x = 24;
     for (const s of sizes) {
-      ctx.drawImage(b, x, 14 - s / 2, s, s);       // on dark strip
-      ctx.drawImage(b, x, 42 - s / 2, s, s);       // on light strip
+      ctx.drawImage(plain, x, 14 - s / 2, s, s);   // plain, dark strip
+      ctx.drawImage(s === 16 ? cl : cx, x, 42 - s / 2, s, s); // accented, light strip
       x += s + 44;
     }
     return c.toDataURL('image/png');

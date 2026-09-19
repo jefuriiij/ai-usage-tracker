@@ -4,6 +4,33 @@ All notable changes to **AI Usage Tracker** (formerly Claude Usage Tracker) are
 recorded here. Each released version ships a matching
 `releases/AI Usage Tracker Setup <version>.exe`.
 
+## [1.1.1] — 2026-09-19
+
+### Added
+- **"Tray icon shows" submenu** in the tray right-click menu: choose whether the
+  badge number follows *Highest usage* (whichever provider is closest to its
+  limit) or is pinned to Claude or Codex. The choice persists across restarts in
+  `%APPDATA%\ai-usage-tracker\settings.json` via a new `lib/settings.js`. The
+  submenu only appears when more than one provider is signed in.
+- **Provider accent stripe on the tray badge** — a 4px coloured bar along the
+  bottom edge (Claude coral / Codex green) identifying whose percentage the
+  number is. Drawn only when more than one provider is signed in; the number is
+  nudged up and slightly resized so it stays optically centred. Verified legible
+  at 16px.
+- The tray tooltip marks the provider the badge speaks for with a `●`.
+
+### Changed
+- `drawBadge(text, stale, accent)` takes an optional accent colour;
+  `drawMenuGlyph` gained a `badge` glyph for the new submenu.
+- `dev-preview.js` renders the accent-striped badge variants and puts them in
+  `tray-sim.png` at real tray sizes.
+
+### Fixed
+- Pinning a provider that later signs out no longer leaves the badge stuck on
+  `?` — it reverts to *Highest usage*. A pinned provider that is signed in but
+  has no reading yet shows `?` rather than silently borrowing the other
+  provider's number.
+
 ## [1.1.0] — 2026-09-19
 
 ### Added
