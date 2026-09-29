@@ -75,8 +75,7 @@ async function init() {
     rebuildMenu();
   });
 
-  await poll(); // first read immediately
-  pollTimer = setInterval(poll, POLL_INTERVAL_MS);
+  await poll(); // first read immediately; poll() arms the interval timer itself
 }
 
 /**
@@ -156,7 +155,22 @@ async function loadMenuIcons() {
 // ---------------------------------------------------------------------------
 // Polling
 // ---------------------------------------------------------------------------
-async function poll() {
+/**
+ * Poll every provider once. A call made while a poll is already in flight
+ * joins it instead of starting a second request, so a manual refresh can
+ * never race the timer and double-hit the rate-limited endpoints.
+ */
+let inFlight = null;
+function poll() {
+  if (!inFlight) {
+    inFlight = pollOnce().finally(() => {
+      inFlight = null;
+    });
+  }
+  return inFlight;
+}
+
+async function pollOnce() {
   lastPollAt = Date.now();
   seedState(); // a provider's CLI may have been installed/signed in since startup
 
@@ -375,7 +389,10 @@ function createPopup() {
   });
   popup.loadFile(path.join(__dirname, 'popup.html'));
   popup.on('blur', () => {
-    if (popup && !popup.isDestroyed()) popup.hide();
+    if (popup && !popup.isDestroyed() && popup.isVisible()) {
+      popup.hide();
+      lastBlurHideAt = Date.now();
+    }
   });
   popup.webContents.on('did-finish-load', () => {
     popup.webContents.send('usage', payload());
@@ -396,8 +413,11 @@ function popupHeight() {
       if (e.reading.week) rows++;
       rows += (e.reading.scoped || []).length;
     }
-    if (e.status !== 'ok' && e.statusDetail) h += 42; // per-provider banner
-    h += rows ? 76 * rows : 24; // rows, or a one-line placeholder
+    const banner = e.status !== 'ok' && e.statusDetail;
+    if (banner) h += 42; // per-provider banner
+    // Rows, or a one-line placeholder — popup.js omits the placeholder when a
+    // banner is already explaining the empty section.
+    h += rows ? 76 * rows : banner ? 0 : 24;
     h += 10; // gap below the section
   }
   return h;
@@ -416,10 +436,19 @@ function positionPopup() {
   popup.setBounds({ x, y, width: POPUP_W, height: h });
 }
 
+/**
+ * Clicking the tray icon while the popup is open blurs the popup first, which
+ * hides it; the click then arrives and would reopen it. A hide that happened
+ * this recently is treated as the click's own close.
+ */
+const BLUR_CLICK_GRACE_MS = 300;
+let lastBlurHideAt = 0;
+
 function togglePopup(forceShow) {
   if (!popup) createPopup();
-  if (!forceShow && popup.isVisible()) {
+  if (!forceShow && (popup.isVisible() || Date.now() - lastBlurHideAt < BLUR_CLICK_GRACE_MS)) {
     popup.hide();
+    lastBlurHideAt = 0;
     return;
   }
   positionPopup();

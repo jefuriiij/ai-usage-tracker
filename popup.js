@@ -84,7 +84,8 @@ function metaFor(entry, newest) {
   const r = entry.reading;
   if (r && r.plan) bits.push(String(r.plan).replace(/_/g, ' '));
   if (r && r.credits) {
-    bits.push(r.credits.unlimited ? 'unlimited credits' : `${r.credits.balance} credits`);
+    if (r.credits.unlimited) bits.push('unlimited credits');
+    else if (typeof r.credits.balance === 'number') bits.push(`${r.credits.balance} credits`);
   }
   const stale = entry.status === 'stale' || entry.status === 'expired';
   if (stale && r && r.updatedAt && r.updatedAt !== newest) {

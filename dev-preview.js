@@ -68,8 +68,9 @@ function popupHeight(entries) {
       if (e.reading.week) rows++;
       rows += (e.reading.scoped || []).length;
     }
-    if (e.status !== 'ok' && e.statusDetail) h += 42;
-    h += rows ? 76 * rows : 24;
+    const banner = e.status !== 'ok' && e.statusDetail;
+    if (banner) h += 42;
+    h += rows ? 76 * rows : banner ? 0 : 24;
     h += 10;
   }
   return h;

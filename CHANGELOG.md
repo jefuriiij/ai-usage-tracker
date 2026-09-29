@@ -4,6 +4,24 @@ All notable changes to **AI Usage Tracker** (formerly Claude Usage Tracker) are
 recorded here. Each released version ships a matching
 `releases/AI Usage Tracker Setup <version>.exe`.
 
+## [1.1.2] — 2026-09-30
+
+### Fixed
+- **Double polling.** Startup armed a second 180s timer that was never cleared,
+  so both endpoints were hit twice per interval and the 429 backoff only slowed
+  one of the two loops. There is now exactly one poll timer.
+- **Overlapping polls.** A poll requested while another is in flight now joins
+  it instead of firing a second round of requests.
+- **Tray click reopening the panel.** Clicking the tray icon while the panel was
+  open blurred it (hiding it) and the click then reopened it. The click now
+  closes it.
+- Codex header no longer shows `null credits` when the API reports credits
+  without a balance.
+- A Claude **403** is now treated as a rejected token (as 401 already was, and
+  as Codex does), instead of a generic error.
+- Panel height no longer reserves 24px for the "waiting" placeholder in a
+  section where the error banner replaces it. `dev-preview.js` mirrors the fix.
+
 ## [1.1.1] — 2026-09-19
 
 ### Added
