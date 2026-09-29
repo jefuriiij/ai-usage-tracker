@@ -1,151 +1,125 @@
 # AI Usage Tracker
 
-A passive Windows system-tray widget that shows your **Claude** and
-**Codex / ChatGPT** usage — the same figures as each provider's own "usage
-limits" page — without opening a browser.
+A small Windows tray app that shows how much of your **Claude** and **Codex**
+usage limits you've used, without opening a browser.
 
-- **Tray icon** shows a session percentage at a glance (green → amber → red).
-  With two providers signed in, a coloured stripe along the bottom of the badge
-  says whose number it is, and you choose the source from the right-click menu:
-  **Tray icon shows → Highest usage / Claude / Codex**. The choice persists.
-- **Click the icon** for a panel with one section per signed-in CLI: Current
-  session (5-hour), This week, and any per-model or scoped limits, each with a
-  live reset countdown.
-- **No login.** It reads the OAuth tokens the CLIs already store on your machine.
-- **Only shows what you have.** A provider with no credentials on disk is
-  skipped entirely — install without the Codex CLI and it looks exactly like
-  the single-provider version.
+<img src="docs/panel.png" alt="The usage panel showing Claude and Codex session and weekly limits" width="320">
 
-## Providers
+If you use Claude Code or the Codex CLI on a subscription plan, you hit two
+limits: a 5-hour session window and a weekly cap. This app keeps both in your
+system tray, with a countdown to when each one resets.
 
-| | Claude | Codex / ChatGPT |
-|---|---|---|
-| Credential file | `~/.claude/.credentials.json` | `~/.codex/auth.json` (honours `$CODEX_HOME`) |
-| Written by | Claude Code | Codex CLI (`codex login`) |
-| Endpoint | `api.anthropic.com/api/oauth/usage` | `chatgpt.com/backend-api/wham/usage` |
-| Session window | 5 hours | 5 hours |
-| Weekly window | 7 days | 7 days |
-| Extra rows | per-model weekly limits (e.g. Fable) | code review, plan, credit balance |
+## Features
 
-> The Codex usage endpoint is **undocumented and reverse-engineered**. It can
-> change or disappear without notice; when it does, that section shows an error
-> banner and the Claude section keeps working.
+- A tray icon that shows your current session usage as a percentage.
+- Click it for a panel with every limit: current session, this week, and any
+  per-model limits, each with a reset countdown.
+- Claude and Codex side by side. It only shows the ones you're signed in to.
+- No new login. It reuses the sign-in your Claude Code or Codex CLI already
+  has on your machine.
+- Optional start at login.
 
-Codex authenticated with an **API key** instead of ChatGPT sign-in has no
-subscription usage to report — that section says so rather than showing zeros.
+## Requirements
 
-## How it works (and why it's safe)
+- Windows 10 or 11.
+- At least one of:
+  - [Claude Code](https://claude.com/claude-code), signed in with a Claude
+    subscription (Pro or Max).
+  - The [Codex CLI](https://github.com/openai/codex), signed in with your
+    ChatGPT account (`codex login`).
 
-- It reads both credential files **read-only** — it never writes to them, never
-  refreshes a token, and never touches a `refresh_token`. Each CLI stays the
-  sole owner of its own login.
-- Each token is only ever sent to that provider's own server
-  (`api.anthropic.com`, `chatgpt.com`). No new secret is created or stored.
-- It polls every 180 seconds (the endpoints are rate-limit sensitive), backing
-  off to 300s if any provider returns a 429.
+Codex set up with an API key instead of a ChatGPT sign-in has no subscription
+limits to show, and the app will say so.
 
-### Freshness
+## Install
 
-The tokens are valid while you're using the CLIs. If a CLI has been **fully
-closed for a while**, its token expires — and because this app **never refreshes
-it**, that section switches to a *stale* view: the last reading stays visible
-(dimmed) alongside the still-accurate reset countdown, labeled "as of HH:MM".
-Open the CLI again and the next poll goes live. Providers go stale
-independently; one expired token never blanks the other section.
+1. Download `AI Usage Tracker Setup <version>.exe` from the
+   [latest release](https://github.com/jefuriiij/ai-usage-tracker/releases/latest).
+2. Run it. It installs for your user account only, so you don't need admin
+   rights.
+3. Windows will probably show a blue "Windows protected your PC" screen,
+   because the installer isn't code-signed. Click **More info**, then
+   **Run anyway**.
 
-## Run
+The app starts in your system tray. If you don't see it, check the hidden-icons
+arrow (**^**) next to the clock and drag it onto the taskbar.
 
-```sh
-npm install
-npm start
-```
+To update, run the newer installer. It upgrades in place and keeps your
+settings.
 
-The app lives in the tray (no taskbar button). Right-click the tray icon for:
-**Show usage panel · Refresh now · Tray icon shows ▸ · Start at login ·
-Open &lt;provider&gt; usage · Quit**.
+## Using it
 
-**Tray icon shows** picks which provider the badge number belongs to —
-*Highest usage* (follows whichever is closest to its limit), or a specific
-provider pinned. It only appears when more than one provider is signed in, and
-the choice is saved to `%APPDATA%\ai-usage-tracker\settings.json`. Pin a
-provider that later signs out and the badge quietly reverts to *Highest usage*.
+**Glance at the tray icon.** The number is your current session usage. If
+you're signed in to both Claude and Codex, a coloured stripe along the bottom
+tells you whose number it is: orange for Claude, green for Codex.
 
-There's one "Open … usage" item per signed-in provider. In the panel, clicking a
-provider's name opens the same page.
+**Hover it** for a one-line summary per provider.
 
-To launch automatically on sign-in, toggle **Start at login** in that menu.
+**Click it** to open the full panel. Bars turn amber at 50% and red at 85%.
+Click a provider's name to open its usage page in your browser.
 
-### Check the data path without the GUI
+**Right-click it** for the menu:
 
-```sh
-npm test               # every provider with credentials on disk
-node test-fetch.js codex --raw
-```
+| Item | What it does |
+|------|--------------|
+| Show usage panel | Opens the panel |
+| Refresh now | Fetches fresh numbers straight away |
+| Tray icon shows | With both providers signed in, pick *Highest usage*, *Claude* or *Codex* |
+| Start at login | Launches the app when you sign in to Windows |
+| Open Claude / Codex usage | Opens that provider's usage page |
+| Quit | Closes the app |
 
-Prints percentages only — never a token.
+The numbers refresh every 3 minutes.
 
-### Preview the UI without a tray
+## Privacy and safety
 
-```sh
-npm run preview                       # fixed two-provider sample
-npx electron dev-preview.js --live    # your real signed-in providers
-```
+- The app reads the sign-in files your CLIs already keep
+  (`~/.claude/.credentials.json` and `~/.codex/auth.json`). It never changes
+  them and never renews a login itself.
+- Your Claude login is only sent to Anthropic, and your Codex login only to
+  OpenAI, to fetch your usage. Nothing goes anywhere else.
+- There's no account, no analytics and no telemetry.
+- It keeps one settings file and a copy of the first usage response from each
+  provider in `%APPDATA%\ai-usage-tracker\`. Uninstalling doesn't remove that
+  folder, so delete it by hand if you want it gone.
 
-Writes `popup-preview.png`, badge PNGs and `tray-sim.png`.
+## Troubleshooting
 
-## Build a Windows installer
+**The numbers look faded and say "as of" a time.**
+Your CLI's sign-in has expired, usually because you haven't used it for a
+while. The app never renews logins itself, so it shows your last known numbers
+until you open Claude Code or Codex again. The next refresh picks it up.
 
-```sh
-npm run icon    # regenerate build/icon.ico (only if you change the icon)
-npm run dist    # build the NSIS installer with electron-builder
-```
+**The icon shows `?`.**
+There's no reading yet. Either the first refresh hasn't finished, the provider
+you pinned in *Tray icon shows* hasn't reported in, or no signed-in Claude Code
+or Codex CLI was found. Hover the icon to see which. If it says
+"No AI CLI signed in", sign in to one of them and it appears on the next
+refresh.
 
-The installer is written to `dist\AI Usage Tracker Setup <version>.exe`. It's a
-**per-user** NSIS installer (no admin required) that installs to
-`%LOCALAPPDATA%\Programs`, adds Start-Menu and desktop shortcuts, and registers an
-uninstaller in *Add/Remove Programs*.
+**A red banner says the request failed.**
+Neither usage page is an official public API. If Anthropic or OpenAI change
+theirs, that section will show an error until the app is updated. The other
+provider keeps working.
 
-> The installer is **unsigned**, so Windows SmartScreen shows an "Unknown publisher"
-> prompt on first run — choose *More info → Run anyway*. To remove that warning you'd
-> need a code-signing certificate (configure `win.certificateFile`/`certificatePassword`
-> in `package.json` → `build`).
+**Refresh doesn't seem to do anything.**
+Refreshes are limited to one every 30 seconds so the app doesn't get
+rate-limited.
 
-## Files
+## Uninstall
 
-| File | Role |
-|------|------|
-| `main.js` | App lifecycle, tray, 180s poll loop, popup window, menu, IPC |
-| `lib/providers/index.js` | Provider registry — polls every available provider concurrently |
-| `lib/providers/claude.js` | Claude provider (wraps `credentials.js` + `usage.js`) |
-| `lib/providers/codex.js` | Codex provider — **read-only** `~/.codex/auth.json` + ChatGPT usage endpoint |
-| `lib/credentials.js` | **Read-only** reader for `~/.claude/.credentials.json` |
-| `lib/usage.js` | Calls `/api/oauth/usage`, normalizes the response |
-| `lib/format.js` | Percent rounding, status colors, "resets in" formatting |
-| `lib/settings.js` | Tiny JSON preference store in `userData` (tray-badge choice) |
-| `icon.html` | Hidden canvas renderer that paints the tray badge number |
-| `preload.js` | Locked-down IPC bridge for the popup |
-| `popup.html` / `popup.js` | The usage panel UI |
-| `build-icon.js` | Dev tool — regenerates `build/icon.ico` / `build/icon.png` |
-| `test-fetch.js` | Headless smoke test for the data path |
-| `dev-preview.js` | Dev tool — renders the panel and badges to PNGs |
+Settings → Apps → Installed apps → **AI Usage Tracker** → Uninstall. Then
+delete `%APPDATA%\ai-usage-tracker\` if you want your settings gone too.
 
-### Adding another provider
+## Disclaimer
 
-Drop a module in `lib/providers/` exporting
-`{ id, label, accent, consoleUrl, signInHint, refreshHint, isAvailable(), poll() }`,
-where `poll()` resolves to `{ ok: true, reading, raw }` or
-`{ ok: false, code, message }` and `reading` uses the shared
-`{ session, week, scoped[], updatedAt }` shape. Register it in
-`lib/providers/index.js`. The tray, tooltip, menu and panel pick it up with no
-further changes.
+This is an unofficial hobby project. It isn't affiliated with or endorsed by
+Anthropic or OpenAI. Claude is a trademark of Anthropic; ChatGPT and Codex are
+trademarks of OpenAI. The usage figures come from undocumented endpoints and
+could stop working at any time.
 
-On the first successful fetch per provider, the raw response is written once to
-`%APPDATA%\ai-usage-tracker\last-usage-<id>.json` so the exact field names can be
-verified for your account type.
+## Contributing
 
-## Not included (possible follow-ups)
-
-- **Code signing** the installer (removes the SmartScreen "Unknown publisher" prompt).
-- Auto-updates (electron-updater) — the NSIS target is already update-ready.
-- Threshold notifications / historical graphs.
-- More providers (Gemini CLI, Copilot) — the registry is ready for them.
+Bug reports and pull requests are welcome. See
+[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for building from source, the
+project layout, and how to add a new provider.
