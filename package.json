@@ -1,7 +1,7 @@
 {
   "name": "ai-usage-tracker",
-  "version": "1.1.2",
-  "description": "Passive Windows system-tray widget that shows your Claude and Codex/ChatGPT usage (read-only).",
+  "version": "1.2.0",
+  "description": "Passive system-tray widget that shows your Claude and Codex/ChatGPT usage (read-only). Windows and Linux.",
   "main": "main.js",
   "author": "Jeff",
   "license": "MIT",
@@ -10,7 +10,10 @@
     "test": "node test-fetch.js",
     "icon": "electron build-icon.js",
     "preview": "electron dev-preview.js",
-    "dist": "electron-builder"
+    "dist": "electron-builder",
+    "dist:linux": "electron-builder --linux",
+    "dist:win": "electron-builder --win",
+    "dist:rpm": "electron-builder --linux rpm"
   },
   "devDependencies": {
     "electron": "^31.7.0",
@@ -46,6 +49,20 @@
       "uninstallerSidebar": "build/sidebar.bmp",
       "shortcutName": "AI Usage Tracker",
       "uninstallDisplayName": "AI Usage Tracker"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "icon": "build/icons",
+      "category": "Utility",
+      "maintainer": "Jeff",
+      "synopsis": "Claude and Codex usage in your system tray",
+      "description": "Reads the sign-in your Claude Code and Codex CLIs already store locally and shows your current session / weekly usage as a system-tray badge.",
+      "desktop": {
+        "StartupWMClass": "ai-usage-tracker",
+        "StartupNotify": "false"
+      }
     }
   }
 }

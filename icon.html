@@ -166,6 +166,14 @@
         x.clip();
         x.fillRect(3, 10.8, 10, 2.6);
         x.restore();
+      } else if (name === 'check-off' || name === 'check-on') {
+        // Checkbox drawn as a glyph, for menus where a real checkbox item
+        // would sit outside the icon column (Linux / KDE).
+        rr(3, 3, 10, 10, 2);
+        x.stroke();
+        if (name === 'check-on') {
+          x.beginPath(); x.moveTo(5.4, 8.2); x.lineTo(7.2, 10); x.lineTo(10.7, 6.1); x.stroke();
+        }
       }
       return cv.toDataURL('image/png');
     }

@@ -1,6 +1,6 @@
 # AI Usage Tracker
 
-A small Windows tray app that shows how much of your **Claude** and **Codex**
+A small tray app for **Windows and Linux** that shows how much of your **Claude** and **Codex**
 usage limits you've used, without opening a browser.
 
 <img src="docs/panel.png" alt="The usage panel showing Claude and Codex session and weekly limits" width="320">
@@ -21,7 +21,8 @@ system tray, with a countdown to when each one resets.
 
 ## Requirements
 
-- Windows 10 or 11.
+- Windows 10 or 11, or a Linux desktop with a system tray (see
+  [Linux](#linux)).
 - At least one of:
   - [Claude Code](https://claude.com/claude-code), signed in with a Claude
     subscription (Pro or Max).
@@ -47,6 +48,30 @@ arrow (**^**) next to the clock and drag it onto the taskbar.
 To update, run the newer installer. It upgrades in place and keeps your
 settings.
 
+### Linux
+
+1. Download `AI Usage Tracker-<version>.AppImage` from the
+   [latest release](https://github.com/jefuriiij/ai-usage-tracker/releases/latest).
+2. Make it executable and run it:
+
+   ```sh
+   chmod +x "AI Usage Tracker-<version>.AppImage"
+   "./AI Usage Tracker-<version>.AppImage"
+   ```
+
+The Linux tray works a little differently from Windows:
+
+- **Left-click opens the menu**, not the panel. Pick **Show usage panel** to
+  open it.
+- **There is no hover tooltip.** Instead, the menu starts with one line per
+  provider, such as `Claude: 6% (2h 37m) · wk 58%`.
+- **Start at login** writes `~/.config/autostart/ai-usage-tracker.desktop`.
+  Un-ticking it deletes the file.
+- The tray needs a StatusNotifierItem host. KDE Plasma, XFCE, Cinnamon and most
+  other desktops have one. **GNOME needs the
+  [AppIndicator extension](https://extensions.gnome.org/extension/615/appindicator-support/)**,
+  or the icon won't appear.
+
 ## Using it
 
 **Glance at the tray icon.** The number is your current session usage. If
@@ -65,7 +90,7 @@ Click a provider's name to open its usage page in your browser.
 | Show usage panel | Opens the panel |
 | Refresh now | Fetches fresh numbers straight away |
 | Tray icon shows | With both providers signed in, pick *Highest usage*, *Claude* or *Codex* |
-| Start at login | Launches the app when you sign in to Windows |
+| Start at login | Launches the app when you sign in |
 | Open Claude / Codex usage | Opens that provider's usage page |
 | Quit | Closes the app |
 
@@ -80,7 +105,8 @@ The numbers refresh every 3 minutes.
   OpenAI, to fetch your usage. Nothing goes anywhere else.
 - There's no account, no analytics and no telemetry.
 - It keeps one settings file and a copy of the first usage response from each
-  provider in `%APPDATA%\ai-usage-tracker\`. Uninstalling doesn't remove that
+  provider in `%APPDATA%\ai-usage-tracker\` (`~/.config/ai-usage-tracker/` on
+  Linux). Uninstalling doesn't remove that
   folder, so delete it by hand if you want it gone.
 
 ## Troubleshooting
@@ -110,6 +136,9 @@ rate-limited.
 
 Settings → Apps → Installed apps → **AI Usage Tracker** → Uninstall. Then
 delete `%APPDATA%\ai-usage-tracker\` if you want your settings gone too.
+
+On Linux, turn off **Start at login**, quit the app, and delete the AppImage.
+Then delete `~/.config/ai-usage-tracker/` if you want your settings gone too.
 
 ## Disclaimer
 

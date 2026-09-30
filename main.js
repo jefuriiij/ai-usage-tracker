@@ -7,6 +7,7 @@ const fs = require('fs');
 const providers = require('./lib/providers');
 const settings = require('./lib/settings');
 const fmt = require('./lib/format');
+const autostart = require('./lib/autostart');
 
 // ---- Config ---------------------------------------------------------------
 const POLL_INTERVAL_MS = 180_000; // 180s — endpoints are rate-limit sensitive
@@ -16,6 +17,12 @@ const POPUP_W = 320;
 
 /** Tray badge source: 'auto' = whichever provider is closest to its limit. */
 const BADGE_AUTO = 'auto';
+
+// Linux tray backends (StatusNotifierItem via libappindicator) differ from the
+// Win/macOS ones in three ways that matter here: no hover tooltip, no icon
+// position from getBounds(), and no left-click event — left-click opens the
+// menu. Everything guarded by this flag exists to cover those gaps.
+const IS_LINUX = process.platform === 'linux';
 
 // ---- State ----------------------------------------------------------------
 let tray = null;
@@ -137,7 +144,15 @@ async function loadMenuIcons() {
     await new Promise((res) => iconWin.webContents.once('did-finish-load', res));
   }
   const color = nativeTheme.shouldUseDarkColors ? 'rgba(255, 255, 255, 0.85)' : 'rgba(0, 0, 0, 0.72)';
-  const want = { showPanel: 'panel', refresh: 'refresh', openUsage: 'external', quit: 'power', badge: 'badge' };
+  const want = {
+    showPanel: 'panel',
+    refresh: 'refresh',
+    openUsage: 'external',
+    quit: 'power',
+    badge: 'badge',
+    checkOn: 'check-on',
+    checkOff: 'check-off',
+  };
   const out = {};
   for (const [key, glyph] of Object.entries(want)) {
     try {
@@ -332,19 +347,27 @@ async function render() {
   rebuildMenu();
 }
 
-function buildTooltip() {
-  // Windows tray tooltips support newlines and ~128 chars. With two providers
-  // the per-window breakdown no longer fits, so each provider gets one compact
-  // line — the popup carries the detail.
+/**
+ * The current reading as one compact line per provider. On Windows/macOS these
+ * become the tray tooltip; on Linux, where the tray backend shows no tooltip at
+ * all, they are also pinned to the top of the context menu so the numbers stay
+ * reachable.
+ *
+ * @param {boolean} [markLead=true] prefix the badge's provider with "●". The
+ *   Linux menu turns this off: menu fonts are proportional, so the padding
+ *   that lines the other rows up there collapses, and the "Tray icon shows"
+ *   submenu already says whose number the badge is.
+ */
+function summaryLines(markLead = true) {
   const entries = ordered();
-  if (!entries.length) return 'AI Usage\nNo AI CLI signed in';
+  if (!entries.length) return ['No AI CLI signed in'];
 
   const lead = headline();
-  const lines = ['AI Usage'];
+  const lines = [];
   for (const e of entries) {
-    // A marker on the provider the badge number belongs to, so the tooltip
+    // A marker on the provider the badge number belongs to, so the summary
     // explains the icon rather than just repeating it.
-    const mark = entries.length > 1 && lead && e.id === lead.id ? '● ' : '   ';
+    const mark = !markLead ? '' : entries.length > 1 && lead && e.id === lead.id ? '● ' : '   ';
     if (e.status === 'not_found') {
       lines.push(`${mark}${e.label}: not signed in`);
       continue;
@@ -361,7 +384,14 @@ function buildTooltip() {
     if (e.status === 'stale' || e.status === 'expired') line += ' — stale';
     lines.push(line);
   }
-  return lines.join('\n');
+  return lines;
+}
+
+function buildTooltip() {
+  // Windows tray tooltips support newlines and ~128 chars. With two providers
+  // the per-window breakdown no longer fits, so each provider gets one compact
+  // line — the popup carries the detail.
+  return ['AI Usage', ...summaryLines()].join('\n');
 }
 
 /** The data object handed to the popup renderer. */
@@ -423,16 +453,48 @@ function popupHeight() {
   return h;
 }
 
+/**
+ * Where the panel appears.
+ *
+ * On Windows/macOS the tray icon reports real bounds, so we centre the panel
+ * under it. Linux tray backends expose no position at all — getBounds() is all
+ * zeros — which would pin the panel to the bottom-left corner regardless of
+ * where the tray actually is. So there we anchor to the screen edge the panel
+ * occupies, inferred from how the work area is inset from the full display.
+ */
 function positionPopup() {
   const trayBounds = tray.getBounds();
-  const display = screen.getDisplayNearestPoint({ x: trayBounds.x, y: trayBounds.y });
+  const haveTrayBounds = trayBounds.width > 0 && trayBounds.height > 0;
+  const display = haveTrayBounds
+    ? screen.getDisplayNearestPoint({ x: trayBounds.x, y: trayBounds.y })
+    : screen.getPrimaryDisplay();
   const wa = display.workArea;
   const h = Math.min(popupHeight(), wa.height - 8);
-  // Right-align to the tray icon, sit just above the taskbar with a small margin.
-  let x = Math.round(trayBounds.x + trayBounds.width / 2 - POPUP_W / 2);
-  let y = wa.y + wa.height - h - 12;
+
+  let x;
+  let y;
+  if (haveTrayBounds) {
+    // Right-align to the tray icon, sit just above the taskbar with a small margin.
+    x = Math.round(trayBounds.x + trayBounds.width / 2 - POPUP_W / 2);
+    y = wa.y + wa.height - h - 12;
+  } else {
+    const b = display.bounds;
+    const insets = {
+      top: wa.y - b.y,
+      bottom: b.y + b.height - (wa.y + wa.height),
+      left: wa.x - b.x,
+      right: b.x + b.width - (wa.x + wa.width),
+    };
+    // Widest inset is the desktop panel; default to bottom when there is none.
+    const edge = Object.keys(insets).reduce((best, k) => (insets[k] > insets[best] ? k : best), 'bottom');
+    // Trays sit at the far end of a panel, which on every common layout is the
+    // right side (horizontal panel) or the top (vertical one).
+    x = edge === 'left' ? wa.x + 12 : wa.x + wa.width - POPUP_W - 12;
+    y = edge === 'bottom' ? wa.y + wa.height - h - 12 : wa.y + 12;
+  }
+
   x = Math.max(wa.x + 4, Math.min(x, wa.x + wa.width - POPUP_W - 4));
-  y = Math.max(wa.y + 4, y);
+  y = Math.max(wa.y + 4, Math.min(y, wa.y + wa.height - h - 4));
   popup.setBounds({ x, y, width: POPUP_W, height: h });
 }
 
@@ -462,7 +524,6 @@ function togglePopup(forceShow) {
 // ---------------------------------------------------------------------------
 function rebuildMenu() {
   if (!tray) return;
-  const loginEnabled = app.getLoginItemSettings().openAtLogin;
   const entries = ordered();
 
   // One "open usage" item per signed-in provider, so the menu reflects exactly
@@ -505,26 +566,56 @@ function rebuildMenu() {
         ]
       : [];
 
-  const menu = Menu.buildFromTemplate([
+  const template = [];
+
+  // Linux has no tray tooltip, so the reading itself leads the menu — otherwise
+  // the numbers would only exist inside the popup. The rows stay enabled
+  // because desktops grey out disabled items; clicking one opens the panel.
+  if (IS_LINUX) {
+    for (const line of summaryLines(false)) {
+      template.push({ label: line, click: () => togglePopup(true) });
+    }
+    template.push({ type: 'separator' });
+  }
+
+  template.push(
     { label: 'Show usage panel', icon: menuIcons.showPanel, click: () => togglePopup(true) },
     { label: 'Refresh now', icon: menuIcons.refresh, click: refreshNow },
     { type: 'separator' },
     ...badgeItems,
-    {
-      // Checkbox item: the check state is its indicator, so no custom icon.
-      label: 'Start at login',
-      type: 'checkbox',
-      checked: loginEnabled,
-      click: (item) => {
-        app.setLoginItemSettings({ openAtLogin: item.checked });
-        rebuildMenu();
-      },
-    },
+    startAtLoginItem(),
     ...usageItems,
     { type: 'separator' },
-    { label: 'Quit', icon: menuIcons.quit, click: () => { tray.destroy(); app.exit(0); } },
-  ]);
-  tray.setContextMenu(menu);
+    { label: 'Quit', icon: menuIcons.quit, click: () => { tray.destroy(); app.exit(0); } }
+  );
+
+  // On Linux, changes to individual items don't take effect until the whole menu
+  // is set again — which is what this function does on every render anyway.
+  tray.setContextMenu(Menu.buildFromTemplate(template));
+}
+
+/**
+ * "Start at login". Elsewhere it's a real checkbox item, whose check state is
+ * its indicator. KDE draws that checkbox outside the icon column, so it sat
+ * out of line with every other row; on Linux it's a plain item whose icon is
+ * a drawn checkbox instead.
+ */
+function startAtLoginItem() {
+  const enabled = autostart.isEnabled(app);
+  // Re-read the real state rather than trusting the click: on Linux this
+  // writes a file that may fail, and the box must reflect what stuck.
+  const toggle = () => {
+    autostart.setEnabled(app, !enabled);
+    rebuildMenu();
+  };
+  if (IS_LINUX) {
+    return {
+      label: 'Start at login',
+      icon: enabled ? menuIcons.checkOn : menuIcons.checkOff,
+      click: toggle,
+    };
+  }
+  return { label: 'Start at login', type: 'checkbox', checked: enabled, click: toggle };
 }
 
 /** Persist the tray-badge choice and repaint immediately. */

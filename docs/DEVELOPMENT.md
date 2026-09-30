@@ -52,6 +52,32 @@ The installer is unsigned. Signing it needs a code-signing certificate
 (`win.certificateFile` / `certificatePassword` under `build` in
 `package.json`).
 
+### Linux
+
+```sh
+npm run dist:linux  # AppImage
+npm run dist:rpm    # rpm (see the prerequisite below)
+```
+
+`dist:linux` writes `dist/AI Usage Tracker-<version>.AppImage`: one executable
+that runs on any distro with no install step. `build.linux.icon` points at the
+sized PNGs in `build/icons/`. A lone 256px PNG makes fpm put the icon in a
+broken `hicolor/0x0/` folder.
+
+`dist:rpm` runs through a bundled `fpm` whose Ruby still links against
+`libcrypt.so.1`. Modern Fedora only ships `libcrypt.so.2`, so the build fails
+with `error while loading shared libraries: libcrypt.so.1` until you install the
+compat shim:
+
+```sh
+sudo dnf install libxcrypt-compat rpm-build
+```
+
+Add `"deb"` to `build.linux.target` for a Debian package. That needs `dpkg` on
+the build machine.
+
+### Locked build output
+
 If the build fails with `app.asar: The process cannot access the file`, a
 previous build's output is still locked. Build to a fresh folder instead:
 
@@ -71,10 +97,12 @@ npx electron-builder -c.directories.output=dist2
 | `lib/usage.js` | Calls Anthropic's `/api/oauth/usage` and normalizes the response |
 | `lib/format.js` | Percent rounding, status colours, "resets in" formatting |
 | `lib/settings.js` | Small JSON preference store in `userData` (tray badge choice) |
+| `lib/autostart.js` | Cross-platform "Start at login" (XDG autostart entry on Linux) |
 | `icon.html` | Hidden canvas renderer that paints the tray badge and menu glyphs |
 | `preload.js` | Locked-down IPC bridge for the popup |
 | `popup.html` / `popup.js` | The usage panel |
 | `build-icon.js` | Regenerates `build/icon.ico` and `build/icon.png` |
+| `build/icons/` | Sized PNGs (16–256px) for the Linux package targets |
 | `test-fetch.js` | Headless smoke test for the data path |
 | `dev-preview.js` | Renders the panel and badges to PNGs |
 

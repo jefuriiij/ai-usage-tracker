@@ -4,6 +4,39 @@ All notable changes to **AI Usage Tracker** (formerly Claude Usage Tracker) are
 recorded here. Each released version ships a matching
 `releases/AI Usage Tracker Setup <version>.exe`.
 
+## [1.2.0] — 2026-10-01
+
+### Added
+- **Linux support.** The app now runs as a tray widget on Linux
+  (StatusNotifierItem / AppIndicator), alongside Windows.
+- `lib/autostart.js`: a platform-aware "Start at login". On Linux, Electron's
+  `app.setLoginItemSettings()` does nothing (it never throws, and
+  `getLoginItemSettings()` always reports `openAtLogin: false`), so the menu
+  checkbox could never stick. The Linux path writes an XDG autostart entry to
+  `~/.config/autostart/ai-usage-tracker.desktop` instead, and the checkbox shows
+  the state that actually landed on disk.
+- Linux `electron-builder` packaging: an AppImage target (`npm run dist:linux`),
+  plus `npm run dist:rpm` and `npm run dist:win`. `build.linux.icon` points at a
+  new sized icon set in `build/icons/`.
+- On Linux the tray menu now starts with one row per provider
+  (`Claude: 6% (2h 37m) · wk 58%`). Linux tray backends show no hover tooltip,
+  so without this the numbers would only exist inside the panel. Clicking a
+  row opens the panel.
+- On Linux, **Start at login** is drawn as a checkbox icon in the icon column.
+  KDE draws a real checkbox item outside that column, so the row sat out of
+  line with every other item.
+
+### Fixed
+- The usage panel no longer opens in the wrong corner on Linux.
+  `tray.getBounds()` returns all zeros there, which pinned the panel to the
+  bottom-left. When bounds are missing, the panel now anchors to the screen edge
+  the desktop panel occupies, worked out from the work-area inset.
+
+### Changed
+- `buildTooltip()` was split into `summaryLines()` (one line per provider) plus
+  a thin tooltip wrapper, so the tooltip and the Linux menu rows share one
+  source.
+
 ## [1.1.2] — 2026-09-30
 
 ### Fixed
