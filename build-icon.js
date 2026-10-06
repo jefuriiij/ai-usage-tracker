@@ -126,7 +126,7 @@ function drawSidebar() {
 
   // Wordmark under the gauge.
   ctx.font = '700 21px "Segoe UI", system-ui, sans-serif';
-  ctx.fillText('Claude', cx, cy + radius + 46);
+  ctx.fillText('AI', cx, cy + radius + 46);
   ctx.fillStyle = 'rgba(255, 255, 255, 0.82)';
   ctx.font = '400 15px "Segoe UI", system-ui, sans-serif';
   ctx.fillText('Usage Tracker', cx, cy + radius + 72);
