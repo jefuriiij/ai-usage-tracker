@@ -1,6 +1,6 @@
 {
   "name": "ai-usage-tracker",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Passive system-tray widget that shows your Claude and Codex/ChatGPT usage (read-only). Windows and Linux.",
   "main": "main.js",
   "author": "Jeff",
@@ -10,10 +10,13 @@
     "test": "node test-fetch.js",
     "icon": "electron build-icon.js",
     "preview": "electron dev-preview.js",
-    "dist": "electron-builder",
-    "dist:linux": "electron-builder --linux",
-    "dist:win": "electron-builder --win",
-    "dist:rpm": "electron-builder --linux rpm"
+    "dist": "electron-builder --publish never",
+    "dist:linux": "electron-builder --linux --publish never",
+    "dist:win": "electron-builder --win --publish never",
+    "dist:rpm": "electron-builder --linux rpm --publish never"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
   },
   "devDependencies": {
     "electron": "^31.7.0",
@@ -34,11 +37,19 @@
       "icon.html",
       "lib/**/*"
     ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "jefuriiij",
+        "repo": "ai-usage-tracker"
+      }
+    ],
     "win": {
       "target": "nsis",
       "icon": "build/icon.ico"
     },
     "nsis": {
+      "artifactName": "AI-Usage-Tracker-Setup-${version}.${ext}",
       "oneClick": false,
       "perMachine": false,
       "allowElevation": false,
@@ -49,6 +60,9 @@
       "uninstallerSidebar": "build/sidebar.bmp",
       "shortcutName": "AI Usage Tracker",
       "uninstallDisplayName": "AI Usage Tracker"
+    },
+    "appImage": {
+      "artifactName": "AI-Usage-Tracker-${version}.${ext}"
     },
     "linux": {
       "target": [

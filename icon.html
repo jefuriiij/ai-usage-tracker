@@ -85,7 +85,8 @@
     /**
      * Draw a small monochrome glyph for a tray context-menu item. Rendered in
      * the given color so it can match the system menu theme (light vs dark).
-     * @param {string} name  'panel' | 'refresh' | 'external' | 'power' | 'badge'
+     * @param {string} name  'panel' | 'refresh' | 'external' | 'power' | 'badge' |
+     *                       'check-on' | 'check-off' | 'update'
      * @param {string} color CSS color (e.g. 'rgba(255,255,255,0.85)')
      * @param {number} size  output px (16 for menus; larger for previews)
      * @returns {string} PNG data URL
@@ -174,6 +175,11 @@
         if (name === 'check-on') {
           x.beginPath(); x.moveTo(5.4, 8.2); x.lineTo(7.2, 10); x.lineTo(10.7, 6.1); x.stroke();
         }
+      } else if (name === 'update') {
+        // Down arrow onto a baseline: an update downloaded and waiting.
+        x.beginPath(); x.moveTo(8, 2.8); x.lineTo(8, 10); x.stroke();
+        x.beginPath(); x.moveTo(4.9, 7.1); x.lineTo(8, 10.2); x.lineTo(11.1, 7.1); x.stroke();
+        x.beginPath(); x.moveTo(3.6, 13); x.lineTo(12.4, 13); x.stroke();
       }
       return cv.toDataURL('image/png');
     }

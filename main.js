@@ -8,6 +8,7 @@ const providers = require('./lib/providers');
 const settings = require('./lib/settings');
 const fmt = require('./lib/format');
 const autostart = require('./lib/autostart');
+const updater = require('./lib/updater');
 
 // ---- Config ---------------------------------------------------------------
 const POLL_INTERVAL_MS = 180_000; // 180s — endpoints are rate-limit sensitive
@@ -74,6 +75,16 @@ async function init() {
   tray.on('click', () => togglePopup());
   tray.on('right-click', showMenu);
   await loadMenuIcons();
+  try {
+    updater.init({
+      app,
+      settings,
+      onChange: rebuildMenu, // shows "Restart to update"
+      onRelocate: (newPath) => autostart.retarget(app, newPath),
+    });
+  } catch {
+    /* updates are optional — never let them stop the usage polling */
+  }
   rebuildMenu();
 
   // Re-theme the menu glyphs if the OS switches between light/dark.
@@ -152,6 +163,7 @@ async function loadMenuIcons() {
     badge: 'badge',
     checkOn: 'check-on',
     checkOff: 'check-off',
+    update: 'update',
   };
   const out = {};
   for (const [key, glyph] of Object.entries(want)) {
@@ -578,15 +590,27 @@ function rebuildMenu() {
     template.push({ type: 'separator' });
   }
 
+  // A downloaded update offers itself first; otherwise it installs on quit.
+  const pending = updater.pendingVersion();
+  if (pending) {
+    template.push(
+      { label: `Restart to update to v${pending}`, icon: menuIcons.update, click: updater.installNow },
+      { type: 'separator' }
+    );
+  }
+
+  const updateItems = updater.isSupported() ? [autoUpdateItem()] : [];
+
   template.push(
     { label: 'Show usage panel', icon: menuIcons.showPanel, click: () => togglePopup(true) },
     { label: 'Refresh now', icon: menuIcons.refresh, click: refreshNow },
     { type: 'separator' },
     ...badgeItems,
     startAtLoginItem(),
+    ...updateItems,
     ...usageItems,
     { type: 'separator' },
-    { label: 'Quit', icon: menuIcons.quit, click: () => { tray.destroy(); app.exit(0); } }
+    { label: 'Quit', icon: menuIcons.quit, click: quitApp }
   );
 
   // On Linux, changes to individual items don't take effect until the whole menu
@@ -595,27 +619,43 @@ function rebuildMenu() {
 }
 
 /**
- * "Start at login". Elsewhere it's a real checkbox item, whose check state is
- * its indicator. KDE draws that checkbox outside the icon column, so it sat
+ * An on/off menu item. Elsewhere it's a real checkbox item, whose check state
+ * is its indicator. KDE draws that checkbox outside the icon column, so it sat
  * out of line with every other row; on Linux it's a plain item whose icon is
  * a drawn checkbox instead.
  */
+function toggleItem(label, enabled, toggle) {
+  if (IS_LINUX) {
+    return { label, icon: enabled ? menuIcons.checkOn : menuIcons.checkOff, click: toggle };
+  }
+  return { label, type: 'checkbox', checked: enabled, click: toggle };
+}
+
 function startAtLoginItem() {
   const enabled = autostart.isEnabled(app);
   // Re-read the real state rather than trusting the click: on Linux this
   // writes a file that may fail, and the box must reflect what stuck.
-  const toggle = () => {
+  return toggleItem('Start at login', enabled, () => {
     autostart.setEnabled(app, !enabled);
     rebuildMenu();
-  };
-  if (IS_LINUX) {
-    return {
-      label: 'Start at login',
-      icon: enabled ? menuIcons.checkOn : menuIcons.checkOff,
-      click: toggle,
-    };
-  }
-  return { label: 'Start at login', type: 'checkbox', checked: enabled, click: toggle };
+  });
+}
+
+function autoUpdateItem() {
+  const enabled = updater.isEnabled();
+  return toggleItem('Update automatically', enabled, () => {
+    updater.setEnabled(!enabled);
+    rebuildMenu();
+  });
+}
+
+/**
+ * app.quit(), not app.exit(): exit() skips the quit events, and a downloaded
+ * update installs from the 'quit' event.
+ */
+function quitApp() {
+  if (tray) tray.destroy();
+  app.quit();
 }
 
 /** Persist the tray-badge choice and repaint immediately. */
@@ -633,7 +673,7 @@ function showMenu() {
 // IPC from popup
 // ---------------------------------------------------------------------------
 ipcMain.handle('refresh', () => { refreshNow(); return payload(); });
-ipcMain.on('quit', () => { if (tray) tray.destroy(); app.exit(0); });
+ipcMain.on('quit', quitApp);
 ipcMain.on('open-console', (_e, id) => {
   const entry = state.get(id) || providers.byId(id);
   if (entry && entry.consoleUrl) shell.openExternal(entry.consoleUrl);

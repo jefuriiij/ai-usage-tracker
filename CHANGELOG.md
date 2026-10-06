@@ -2,7 +2,38 @@
 
 All notable changes to **AI Usage Tracker** (formerly Claude Usage Tracker) are
 recorded here. Each released version ships a matching
-`releases/AI Usage Tracker Setup <version>.exe`.
+`releases/AI-Usage-Tracker-Setup-<version>.exe` (`AI Usage Tracker Setup
+<version>.exe` up to 1.2.0).
+
+## [1.3.0] — 2026-10-07
+
+### Added
+- **Auto-updates from GitHub Releases** via `electron-updater` (new
+  `lib/updater.js`). The app checks 30s after launch and then every 6 hours,
+  downloads a new version in the background, and installs it silently on the
+  next quit. A notification and a **Restart to update to vX** menu item offer to
+  install right away. Network errors stay silent; the next check retries.
+- **Update automatically** checkbox in the tray menu, on by default, stored as
+  `autoUpdate` in `settings.json`. Turning it off stops the checks and the
+  install-on-quit.
+- Updates run only in a packaged Windows build or an AppImage. `npm start` and
+  other Linux packages (rpm) never check.
+
+### Changed
+- Installer and AppImage file names have no spaces:
+  `AI-Usage-Tracker-Setup-<version>.exe` and `AI-Usage-Tracker-<version>.AppImage`.
+  GitHub renames spaces in asset names to dots, which would not match the
+  update manifests.
+- Every release must now also upload `latest.yml` and `latest-linux.yml`. The
+  dist scripts pass `--publish never`. See "Releasing" in `docs/DEVELOPMENT.md`.
+- Quit uses `app.quit()` instead of `app.exit(0)`. `exit()` skips the quit
+  events, and the downloaded update installs from the `quit` event.
+- On Linux, when an update renames the AppImage, the "Start at login" entry is
+  pointed at the new file (`autostart.retarget()`).
+
+### Fixed
+- The installer sidebar said "Claude Usage Tracker". It now says "AI Usage
+  Tracker".
 
 ## [1.2.0] — 2026-10-01
 

@@ -18,6 +18,7 @@ system tray, with a countdown to when each one resets.
 - No new login. It reuses the sign-in your Claude Code or Codex CLI already
   has on your machine.
 - Optional start at login.
+- Updates itself from GitHub Releases. You can turn this off.
 
 ## Requirements
 
@@ -34,7 +35,7 @@ limits to show, and the app will say so.
 
 ## Install
 
-1. Download `AI Usage Tracker Setup <version>.exe` from the
+1. Download `AI-Usage-Tracker-Setup-<version>.exe` from the
    [latest release](https://github.com/jefuriiij/ai-usage-tracker/releases/latest).
 2. Run it. It installs for your user account only, so you don't need admin
    rights.
@@ -45,19 +46,32 @@ limits to show, and the app will say so.
 The app starts in your system tray. If you don't see it, check the hidden-icons
 arrow (**^**) next to the clock and drag it onto the taskbar.
 
-To update, run the newer installer. It upgrades in place and keeps your
-settings.
+### Updates
+
+From version 1.3.0, the app updates itself. It checks GitHub for a new version
+30 seconds after it starts, then every 6 hours. A new version downloads in the
+background. Then a notification and a **Restart to update** menu item appear.
+Click either one to update now. If you do nothing, the update installs the next
+time you quit. Your settings stay.
+
+To turn this off, right-click the tray icon and untick **Update automatically**.
+
+Version 1.2.0 and older can't update themselves. Install 1.3.0 or newer by hand
+once, by running the newer installer over the old one.
 
 ### Linux
 
-1. Download `AI Usage Tracker-<version>.AppImage` from the
+1. Download `AI-Usage-Tracker-<version>.AppImage` from the
    [latest release](https://github.com/jefuriiij/ai-usage-tracker/releases/latest).
 2. Make it executable and run it:
 
    ```sh
-   chmod +x "AI Usage Tracker-<version>.AppImage"
-   "./AI Usage Tracker-<version>.AppImage"
+   chmod +x AI-Usage-Tracker-<version>.AppImage
+   ./AI-Usage-Tracker-<version>.AppImage
    ```
+
+An update replaces the AppImage file with one that has the new version in its
+name. **Start at login** follows the new file.
 
 The Linux tray works a little differently from Windows:
 
@@ -91,6 +105,8 @@ Click a provider's name to open its usage page in your browser.
 | Refresh now | Fetches fresh numbers straight away |
 | Tray icon shows | With both providers signed in, pick *Highest usage*, *Claude* or *Codex* |
 | Start at login | Launches the app when you sign in |
+| Update automatically | Checks GitHub for new versions and installs them (on by default) |
+| Restart to update to vX | Appears when an update is downloaded. Installs it now |
 | Open Claude / Codex usage | Opens that provider's usage page |
 | Quit | Closes the app |
 
@@ -103,6 +119,9 @@ The numbers refresh every 3 minutes.
   them and never renews a login itself.
 - Your Claude login is only sent to Anthropic, and your Codex login only to
   OpenAI, to fetch your usage. Nothing goes anywhere else.
+- To look for updates, the app downloads the release list from github.com. It
+  sends no login, usage data or account details. Untick **Update automatically**
+  and it never contacts GitHub.
 - There's no account, no analytics and no telemetry.
 - It keeps one settings file and a copy of the first usage response from each
   provider in `%APPDATA%\ai-usage-tracker\` (`~/.config/ai-usage-tracker/` on

@@ -43,7 +43,8 @@ npm run icon    # regenerate build/icon.ico (only if you change the icon)
 npm run dist    # build the NSIS installer with electron-builder
 ```
 
-The installer lands in `dist/AI Usage Tracker Setup <version>.exe`. It's a
+The installer lands in `dist/AI-Usage-Tracker-Setup-<version>.exe`, next to
+`latest.yml`. It's a
 per-user NSIS installer: no admin rights, installs to
 `%LOCALAPPDATA%\Programs`, adds Start menu and desktop shortcuts, and
 registers an uninstaller in Add/Remove Programs.
@@ -59,7 +60,8 @@ npm run dist:linux  # AppImage
 npm run dist:rpm    # rpm (see the prerequisite below)
 ```
 
-`dist:linux` writes `dist/AI Usage Tracker-<version>.AppImage`: one executable
+`dist:linux` writes `dist/AI-Usage-Tracker-<version>.AppImage` and
+`latest-linux.yml`. The AppImage is one executable
 that runs on any distro with no install step. `build.linux.icon` points at the
 sized PNGs in `build/icons/`. A lone 256px PNG makes fpm put the icon in a
 broken `hicolor/0x0/` folder.
@@ -82,8 +84,62 @@ If the build fails with `app.asar: The process cannot access the file`, a
 previous build's output is still locked. Build to a fresh folder instead:
 
 ```sh
-npx electron-builder -c.directories.output=dist2
+npx electron-builder --publish never -c.directories.output=dist2
 ```
+
+## Releasing (and how auto-update finds it)
+
+The app updates itself with `electron-updater` from GitHub Releases. The build
+config (`build.publish`) bakes the repo into `resources/app-update.yml`. The
+app then reads `latest.yml` (Windows) or `latest-linux.yml` (Linux) from the
+newest release and downloads the file named there.
+
+So every release must have these assets:
+
+| Asset | Why |
+|---|---|
+| `AI-Usage-Tracker-Setup-<version>.exe` | Windows installer |
+| `AI-Usage-Tracker-Setup-<version>.exe.blockmap` | lets updates download only the changed parts |
+| `latest.yml` | Windows update manifest |
+| `AI-Usage-Tracker-<version>.AppImage` | Linux build |
+| `latest-linux.yml` | Linux update manifest |
+
+```sh
+gh release create v<version> --title "v<version> - <summary>" --notes-file notes.md --latest \
+  dist/AI-Usage-Tracker-Setup-<version>.exe dist/AI-Usage-Tracker-Setup-<version>.exe.blockmap \
+  dist/latest.yml dist/AI-Usage-Tracker-<version>.AppImage dist/latest-linux.yml
+```
+
+Keep the file names free of spaces. GitHub changes spaces in asset names to
+dots, but the `.yml` manifests name the file with dashes, so a renamed file
+breaks the update. `artifactName` in `package.json` already sets dashed names.
+
+The tag must be `v<version>`, and the release must not be a draft or a
+pre-release, or the updater won't see it. The dist scripts pass
+`--publish never`, so electron-builder never uploads by itself.
+
+The installer is unsigned, and `app-update.yml` has no `publisherName`, so the
+updater skips the signature check. If you add code signing later, the old
+unsigned versions keep updating, and new signed ones check the signature.
+
+### Test an update locally
+
+Updates only run in a packaged build. To test without publishing:
+
+1. Build twice into different folders. Give the second build a higher version:
+   `npx electron-builder --win --publish never -c.directories.output=b1` and
+   `... -c.directories.output=b2 -c.extraMetadata.version=<higher>`.
+2. Serve the `b2` folder over HTTP on localhost.
+3. In `b1/win-unpacked/resources/app-update.yml`, replace the content with
+   `provider: generic`, `url: http://127.0.0.1:<port>/` and
+   `updaterCacheDirName: ai-usage-tracker-updater-TEST`.
+4. Run `b1/win-unpacked/AI Usage Tracker.exe --user-data-dir=<temp folder>`.
+   The separate data folder stops the single-instance lock from handing off to
+   an installed copy. After 30 seconds it downloads the update to
+   `%LOCALAPPDATA%\ai-usage-tracker-updater-TEST\pending\` and shows the
+   notification.
+5. Quitting now installs the test version over your real install. Kill the
+   process instead if you don't want that, then delete the `-TEST` folder.
 
 ## Project layout
 
@@ -98,6 +154,7 @@ npx electron-builder -c.directories.output=dist2
 | `lib/format.js` | Percent rounding, status colours, "resets in" formatting |
 | `lib/settings.js` | Small JSON preference store in `userData` (tray badge choice) |
 | `lib/autostart.js` | Cross-platform "Start at login" (XDG autostart entry on Linux) |
+| `lib/updater.js` | Self-update from GitHub Releases via `electron-updater` |
 | `icon.html` | Hidden canvas renderer that paints the tray badge and menu glyphs |
 | `preload.js` | Locked-down IPC bridge for the popup |
 | `popup.html` / `popup.js` | The usage panel |
@@ -148,7 +205,7 @@ refresh token.
 
 Both live in `%APPDATA%\ai-usage-tracker\`:
 
-- `settings.json`: the tray badge choice.
+- `settings.json`: the tray badge choice and the "Update automatically" switch.
 - `last-usage-<id>.json`: the first successful raw response per provider,
   written once so field names can be checked for your account type. It can
   contain your account email and ID.
@@ -156,7 +213,6 @@ Both live in `%APPDATA%\ai-usage-tracker\`:
 ## Ideas not built yet
 
 - Code signing, to remove the SmartScreen prompt.
-- Auto-updates via electron-updater. The NSIS target already supports it.
 - Notifications when a limit crosses a threshold.
 - Usage history graphs.
 - More providers, such as Gemini CLI or Copilot.
