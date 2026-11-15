@@ -25,6 +25,13 @@ const BADGE_AUTO = 'auto';
 // menu. Everything guarded by this flag exists to cover those gaps.
 const IS_LINUX = process.platform === 'linux';
 
+// Windows 11 22H2 and later can blur whatever is behind a window (acrylic), so
+// there the panel is see-through. Everywhere else it keeps its solid
+// background: Linux and Windows 10 have no blur to put under it, and text over
+// a sharp desktop is unreadable.
+const GLASS =
+  process.platform === 'win32' && Number(process.getSystemVersion().split('.')[2]) >= 22621;
+
 // ---- State ----------------------------------------------------------------
 let tray = null;
 let iconWin = null; // hidden renderer that paints the tray badge
@@ -52,16 +59,22 @@ let badgeSource = BADGE_AUTO;
 // ---------------------------------------------------------------------------
 // Single instance — a second launch just surfaces the existing one.
 // ---------------------------------------------------------------------------
+// A copy that loses the lock must not start up at all: 'ready' still fires for
+// it before the quit lands, and init() would open a window and begin polling.
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   app.on('second-instance', () => togglePopup(true));
+  app.whenReady().then(init);
 }
 
 // No dock/taskbar presence; this is a tray-only app.
 if (process.platform === 'win32') app.setAppUserModelId('com.aiusage.tracker');
 
-app.whenReady().then(init);
+// Electron's default menu is invisible here but its shortcuts are live in the
+// panel: Ctrl+W closed it, Ctrl+minus zoomed it out of its fitted height.
+Menu.setApplicationMenu(null);
+
 app.on('window-all-closed', (e) => e.preventDefault()); // stay alive in tray
 
 async function init() {
@@ -150,7 +163,7 @@ async function makeBadge(text, stale, accent) {
  * whenever the system theme changes.
  */
 async function loadMenuIcons() {
-  if (!iconWin) return;
+  if (!iconWin || iconWin.isDestroyed()) return;
   if (iconWin.webContents.isLoading()) {
     await new Promise((res) => iconWin.webContents.once('did-finish-load', res));
   }
@@ -315,12 +328,18 @@ function headline() {
   return best;
 }
 
+/** True before the tray exists and after Quit destroyed it. */
+function trayGone() {
+  return !tray || tray.isDestroyed();
+}
+
 /** True when the pinned provider is gone from the panel (CLI signed out). */
 function pinnedMissing() {
   return badgeSource !== BADGE_AUTO && !state.has(badgeSource);
 }
 
 async function render() {
+  if (trayGone()) return;
   const entries = ordered();
   // A pin pointing at a provider that's no longer signed in silently degrades
   // to auto, so the badge keeps showing something useful.
@@ -343,11 +362,14 @@ async function render() {
   // than one provider to confuse it with.
   const accent = lead && entries.length > 1 ? lead.accent : null;
 
+  let badge = null;
   try {
-    tray.setImage(await makeBadge(text, stale, accent));
+    badge = await makeBadge(text, stale, accent);
   } catch {
     /* ignore transient renderer issues */
   }
+  if (trayGone()) return; // Quit landed while the badge was painting
+  if (badge) tray.setImage(badge);
   tray.setToolTip(buildTooltip());
 
   // --- Push to popup if open ---
@@ -415,7 +437,7 @@ function payload() {
 // Popup window
 // ---------------------------------------------------------------------------
 function createPopup() {
-  popup = new BrowserWindow({
+  const win = new BrowserWindow({
     width: POPUP_W,
     height: popupHeight(),
     show: false,
@@ -423,21 +445,34 @@ function createPopup() {
     resizable: false,
     skipTaskbar: true,
     fullscreenable: false,
+    // Solid: popup.html's --bg, so the first open isn't a white flash. Glass:
+    // fully clear, so the acrylic shows through; Windows also rounds the corners.
+    backgroundColor: GLASS ? '#00000000' : '#262624',
+    ...(GLASS ? { backgroundMaterial: 'acrylic' } : {}),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
     },
   });
-  popup.loadFile(path.join(__dirname, 'popup.html'));
-  popup.on('blur', () => {
-    if (popup && !popup.isDestroyed() && popup.isVisible()) {
-      popup.hide();
+  popup = win;
+  // popup.js reads ?glass and switches the page to its see-through colours.
+  win.loadFile(path.join(__dirname, 'popup.html'), GLASS ? { query: { glass: '1' } } : undefined);
+  win.on('blur', () => {
+    if (!win.isDestroyed() && win.isVisible()) {
+      win.hide();
       lastBlurHideAt = Date.now();
     }
   });
-  popup.webContents.on('did-finish-load', () => {
-    popup.webContents.send('usage', payload());
+  // Alt+F4 closes even a frameless window. Forget it, so the next tray click
+  // builds a new panel instead of calling into a destroyed one.
+  win.on('closed', () => {
+    if (popup === win) popup = null;
+  });
+  win.webContents.on('did-finish-load', () => {
+    // Zoom is remembered per page; undo any left by a build that allowed it.
+    win.webContents.setZoomFactor(1);
+    win.webContents.send('usage', payload());
   });
 }
 
@@ -519,6 +554,8 @@ const BLUR_CLICK_GRACE_MS = 300;
 let lastBlurHideAt = 0;
 
 function togglePopup(forceShow) {
+  // A second launch can ask for the panel before startup has made the tray.
+  if (trayGone()) return;
   if (!popup) createPopup();
   if (!forceShow && (popup.isVisible() || Date.now() - lastBlurHideAt < BLUR_CLICK_GRACE_MS)) {
     popup.hide();
@@ -535,7 +572,7 @@ function togglePopup(forceShow) {
 // Tray context menu
 // ---------------------------------------------------------------------------
 function rebuildMenu() {
-  if (!tray) return;
+  if (trayGone()) return;
   const entries = ordered();
 
   // One "open usage" item per signed-in provider, so the menu reflects exactly
@@ -654,7 +691,8 @@ function autoUpdateItem() {
  * update installs from the 'quit' event.
  */
 function quitApp() {
-  if (tray) tray.destroy();
+  if (pollTimer) clearInterval(pollTimer);
+  if (!trayGone()) tray.destroy();
   app.quit();
 }
 

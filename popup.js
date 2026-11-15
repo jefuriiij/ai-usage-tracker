@@ -6,6 +6,9 @@
 // Payload shape: { providers: [ { id, label, accent, consoleUrl, signInHint,
 //                                 refreshHint, status, statusDetail, reading } ] }
 
+// main.js adds ?glass where the OS blurs what is behind the window.
+if (new URLSearchParams(location.search).has('glass')) document.documentElement.classList.add('glass');
+
 let latest = null;
 
 // ---- local formatters (mirror lib/format.js) ------------------------------
@@ -57,7 +60,7 @@ function fillRow(row, label, win, dimmed) {
   bar.style.width = `${pct}%`;
   bar.style.background = colorForPct(pct);
   const reset = resetsIn(win.resetsAt);
-  row.querySelector('.row-reset').textContent = reset ? `Resets in ${reset}` : '';
+  row.querySelector('.row-reset').textContent = !reset ? '' : reset === 'now' ? 'Resets now' : `Resets in ${reset}`;
 }
 
 /** The rows a provider should show, in display order. */
@@ -129,11 +132,17 @@ function syncProvider(entry, newest) {
     if (!banner) {
       banner = document.createElement('div');
       banner.className = 'banner';
-      section.appendChild(banner);
+      banner.appendChild(document.createElement('span'));
+      // Always directly under the header, also when the rows are already there.
+      section.querySelector('.phead').after(banner);
     }
-    banner.textContent = entry.statusDetail;
+    // The inner span is clamped to two lines (the height main.js reserves);
+    // the full text stays reachable on hover.
+    banner.firstChild.textContent = entry.statusDetail;
+    banner.title = entry.statusDetail;
   } else if (banner) {
     banner.remove();
+    banner = null; // so the placeholder check below sees it is gone
   }
 
   // --- rows ---

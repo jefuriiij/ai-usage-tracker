@@ -5,6 +5,38 @@ recorded here. Each released version ships a matching
 `releases/AI-Usage-Tracker-Setup-<version>.exe` (`AI Usage Tracker Setup
 <version>.exe` up to 1.2.0).
 
+## [1.3.1] — 2026-11-15
+
+### Changed
+- **Glass panel on Windows 11.** The panel is now see-through and blurs what is
+  behind it (acrylic, Windows 11 22H2 and later), with rounded corners from the
+  OS. Rows, borders and buttons use translucent whites. In light mode the dark
+  tint is heavier, so the text stays readable. Windows 10 and Linux keep the
+  solid panel: they have no blur to put behind it.
+
+### Fixed
+- **Tray clicks failed after the panel was closed.** Alt+F4 (or Ctrl+W) closed
+  the panel window, and every later tray click threw "Object has been
+  destroyed" until the app restarted. The app now builds a new panel.
+- Keyboard shortcuts from Electron's default menu no longer reach the panel
+  (Ctrl+W close, Ctrl+minus/plus zoom, Ctrl+R reload). A zoom left by an older
+  build resets when the panel loads.
+- Starting the app a second time while the first copy was still starting threw
+  an error. The second copy also began its own startup before it quit; it now
+  quits at once.
+- A status banner ("Token expired…") appeared below the usage rows when a
+  provider went stale, and above them otherwise. It is now always under the
+  provider name.
+- A banner longer than two lines pushed the last row out of the panel. Banners
+  stop at two lines; hover shows the full text.
+- "Resets in now" reads "Resets now".
+- A provider with no rows showed an empty section after its banner cleared; it
+  shows the "Waiting for data…" line again.
+- A `settings.json` holding valid JSON that is not an object (for example
+  `"abc"`) made every settings change throw.
+- The first open of the panel no longer flashes white.
+- Quit no longer leaves a late poll result trying to update a destroyed tray.
+
 ## [1.3.0] — 2026-10-07
 
 ### Added
